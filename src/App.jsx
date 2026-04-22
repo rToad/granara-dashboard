@@ -234,7 +234,7 @@ function ExportCard({label,icon,data,onUpdate,reportDate}) {
   const col   = v => parseFloat(v)>=0?"#6fcf97":"#eb5757";
 
   return (
-    <CardShell icon={icon} title={label} subtitle={`EM MIL TONELADAS · ATÉ ${reportDate||"—"}`}>
+    <CardShell icon={icon} title={label} subtitle={`EM TONELADAS MÉTRICAS · ATÉ ${reportDate||"—"}`}>
       <div style={{display:"flex"}}>
         {/* inputs */}
         <div style={{flex:1,padding:"12px 12px 12px 14px",borderRight:`1px solid ${G.goldDark}22`}}>
@@ -369,15 +369,54 @@ function CropCard({label,icon,isSoy,data,onUpdate,cropDate}) {
 
 // ── Export Card Renderers ─────────────────────────────────────────────────────
 
-function fmtExport(v) {
+function fmtE(v) {
   const n = parseFloat(String(v||"").replace(/,/g,""));
   return isNaN(n)||v===""?"—":n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 }
-
-function pctExport(a,b) {
+function pctE(a,b){
   const na=parseFloat(String(a).replace(/,/g,"")),nb=parseFloat(String(b).replace(/,/g,""));
   if(!nb)return null;
   return (((na-nb)/nb)*100).toFixed(2);
+}
+
+// Shared card shell — dark green, logo header + footer
+function CardShellExport({ children, logo }) {
+  return (
+    <div style={{
+      background:"#002621",
+      width:520,
+      fontFamily:"'Helvetica Neue',Arial,sans-serif",
+      borderRadius:6,
+      overflow:"hidden",
+      boxShadow:"0 4px 24px rgba(0,0,0,0.5)",
+    }}>
+      {/* logo header */}
+      <div style={{
+        background:"linear-gradient(90deg,#001a17 0%,#013A34 100%)",
+        borderBottom:"2px solid #AF965D",
+        padding:"12px 20px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+      }}>
+        <img src={logo} style={{height:32, objectFit:"contain"}} alt="Granara" />
+        <div style={{fontSize:8, color:"#AF965D88", letterSpacing:"0.2em"}}>FONTE: USDA</div>
+      </div>
+
+      {children}
+
+      {/* logo footer */}
+      <div style={{
+        background:"#001a17",
+        borderTop:"1px solid #65562E44",
+        padding:"8px 20px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+      }}>
+        <span style={{fontSize:9, color:"#65562E", letterSpacing:"0.12em", fontStyle:"italic"}}>
+          granara.com.br
+        </span>
+        <img src={logo} style={{height:18, objectFit:"contain", opacity:0.6}} alt="Granara" />
+      </div>
+    </div>
+  );
 }
 
 function ExportCardExport({ label, icon, data, reportDate, logo }) {
@@ -386,231 +425,318 @@ function ExportCardExport({ label, icon, data, reportDate, logo }) {
   const sem   = parseInt(data.semanas)||0;
   const pend  = exp - acum;
   const semEsp= sem ? pend/sem : 0;
-  const dAcum = pctExport(data.acumulado2526, data.acumulado2425);
+  const dAcum = pctE(data.acumulado2526, data.acumulado2425);
+  const dSem  = pctE(data.semanaAtual, data.semanaAnterior);
   const isPos = v => parseFloat(v) >= 0;
-  const border = "1px solid #e5e0d5";
-  const rowStyle = { display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:border };
-  const labelStyle = { fontSize:11, fontFamily:"'Helvetica Neue',Arial,sans-serif", color:"#555", textTransform:"uppercase", letterSpacing:"0.06em" };
-  const valStyle = { fontSize:12, fontFamily:"'Courier New',monospace", fontWeight:"bold", color:"#002621" };
+  const arrowCol = v => isPos(v) ? "#6fcf97" : "#eb5757";
+
+  const Row = ({label:l, value, bold, accent}) => (
+    <div style={{
+      display:"flex", justifyContent:"space-between", alignItems:"baseline",
+      padding:"6px 0", borderBottom:"1px solid #ffffff0a",
+    }}>
+      <span style={{
+        fontSize:10, color: accent ? "#AF965D" : "#EFE8D899",
+        letterSpacing:"0.07em", textTransform:"uppercase",
+        fontWeight: bold ? "600" : "normal",
+      }}>{l}</span>
+      <span style={{
+        fontSize: bold ? 16 : 13,
+        fontFamily:"'Courier New',monospace",
+        fontWeight: bold ? "bold" : "normal",
+        color: bold ? "#EFE8D8" : "#EFE8D8bb",
+      }}>{value}</span>
+    </div>
+  );
 
   return (
-    <div style={{ background:"#fff", width:480, fontFamily:"'Helvetica Neue',Arial,sans-serif", border:"1px solid #ddd", borderRadius:4, overflow:"hidden" }}>
-      {/* header stripe */}
-      <div style={{ background:"#002621", padding:"10px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <img src={icon} style={{ width:24, height:24, filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)", opacity:.85 }} alt="" />
-          <span style={{ fontFamily:"'Helvetica Neue',Arial,sans-serif", fontWeight:"bold", fontSize:16, letterSpacing:"0.18em", color:"#EFE8D8" }}>{label}</span>
+    <CardShellExport logo={logo}>
+      {/* commodity header */}
+      <div style={{
+        background:"linear-gradient(90deg,#013A34,#002621)",
+        padding:"14px 20px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        borderBottom:"1px solid #AF965D44",
+      }}>
+        <div style={{display:"flex", alignItems:"center", gap:12}}>
+          <img src={icon} style={{
+            width:36, height:36,
+            filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)", opacity:.9,
+          }} alt={label} />
+          <div>
+            <div style={{fontSize:22, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
+            <div style={{fontSize:9, color:"#AF965D", letterSpacing:"0.15em"}}>EM TONELADAS MÉTRICAS</div>
+          </div>
         </div>
-        <span style={{ fontSize:9, color:"#AF965D", letterSpacing:"0.1em" }}>EM MIL TONELADAS</span>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:9, color:"#65562E", letterSpacing:"0.1em"}}>RELATÓRIO SEMANAL</div>
+          <div style={{fontSize:11, color:"#AF965D", fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {reportDate||"—"}</div>
+        </div>
       </div>
-      {/* date bar */}
-      <div style={{ background:"#f7f4ef", padding:"5px 16px", borderBottom:"2px solid #AF965D", display:"flex", justifyContent:"space-between" }}>
-        <span style={{ fontSize:10, color:"#65562E", letterSpacing:"0.1em", fontWeight:"bold" }}>RELATÓRIO SEMANAL DE INSPEÇÕES DE EXPORTAÇÕES EUA</span>
-        <span style={{ fontSize:10, color:"#65562E", fontWeight:"bold" }}>ATÉ {reportDate||"—"}</span>
-      </div>
+
       {/* body */}
-      <div style={{ padding:"12px 16px 8px" }}>
-        <div style={rowStyle}>
-          <span style={labelStyle}>Semana Atual</span>
-          <span style={{...valStyle,fontSize:15}}>{fmtExport(data.semanaAtual)}</span>
-        </div>
-        <div style={rowStyle}>
-          <span style={labelStyle}>Semana Anterior</span>
-          <span style={valStyle}>{fmtExport(data.semanaAnterior)}</span>
-        </div>
-        <div style={rowStyle}>
-          <span style={labelStyle}>Ano Anterior (2024/25)</span>
-          <span style={valStyle}>{fmtExport(data.anoAnterior)}</span>
-        </div>
-        <div style={{...rowStyle, borderBottom:"2px solid #AF965D", paddingBottom:8, marginBottom:4}}>
-          <span style={{...labelStyle, color:"#002621", fontWeight:"bold"}}>Acumulado 2025/26</span>
-          <span style={{...valStyle, fontSize:15}}>{fmtExport(data.acumulado2526)}</span>
-        </div>
-        <div style={rowStyle}>
-          <span style={labelStyle}>Acumulado 2024/25</span>
-          <span style={valStyle}>{fmtExport(data.acumulado2425)}</span>
-        </div>
-        {dAcum !== null && (
-          <div style={{ textAlign:"right", fontSize:11, fontFamily:"monospace", marginBottom:4,
-            color: isPos(dAcum) ? "#217a4b" : "#b92020", fontWeight:"bold" }}>
-            {isPos(dAcum) ? "▲" : "▼"} {Math.abs(dAcum)}% acumulado
+      <div style={{padding:"14px 20px 10px"}}>
+        <Row label="Semana Atual"       value={fmtE(data.semanaAtual)}    bold />
+        <Row label="Semana Anterior"    value={fmtE(data.semanaAnterior)} />
+        {dSem !== null && (
+          <div style={{textAlign:"right", fontSize:11, fontFamily:"monospace",
+            color:arrowCol(dSem), marginBottom:2}}>
+            {isPos(dSem)?"▲":"▼"} {Math.abs(dSem)}% vs sem. anterior
           </div>
         )}
-        {/* embarque section */}
-        <div style={{ background:"#f7f4ef", borderRadius:3, padding:"8px 10px", marginTop:6 }}>
-          <div style={{ fontSize:9, color:"#65562E", letterSpacing:"0.12em", marginBottom:6, fontWeight:"bold" }}>EMBARQUE</div>
+        <Row label="Ano Anterior 2024/25" value={fmtE(data.anoAnterior)} />
+
+        {/* divider */}
+        <div style={{height:1, background:"linear-gradient(90deg,#AF965D44,#AF965D,#AF965D44)", margin:"10px 0"}} />
+
+        <Row label="Acumulado 2025/26" value={fmtE(data.acumulado2526)} bold accent />
+        <Row label="Acumulado 2024/25" value={fmtE(data.acumulado2425)} />
+        {dAcum !== null && (
+          <div style={{textAlign:"right", fontSize:12, fontFamily:"monospace",
+            color:arrowCol(dAcum), fontWeight:"bold", marginBottom:2}}>
+            {isPos(dAcum)?"▲":"▼"} {Math.abs(dAcum)}% acumulado
+          </div>
+        )}
+
+        {/* embarque block */}
+        <div style={{
+          background:"#013A3444", border:"1px solid #AF965D22",
+          borderRadius:4, padding:"10px 14px", marginTop:10,
+        }}>
+          <div style={{fontSize:9, color:"#AF965D", letterSpacing:"0.15em",
+            marginBottom:8, borderBottom:"1px solid #AF965D33", paddingBottom:4}}>
+            EMBARQUE
+          </div>
           {[
-            ["Expectativa de Embarque", data.expectativa ? Number(data.expectativa).toLocaleString("pt-BR") : "—"],
-            ["Embarque Acumulado",      fmtExport(data.acumulado2526)],
-            ["Embarque Pendente",       exp&&acum ? fmtExport(pend) : "—"],
-            ["Semanas Restantes",       data.semanas||"—"],
-            ["Embarque Semanal Esperado", exp&&acum&&sem ? fmtExport(semEsp) : "—"],
-          ].map(([l,v]) => (
-            <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0", borderBottom:"1px solid #e5e0d5" }}>
-              <span style={{ fontSize:10, color:"#555", letterSpacing:"0.05em" }}>{l}</span>
-              <span style={{ fontSize:11, fontFamily:"monospace", fontWeight:"bold", color:"#002621" }}>{v}</span>
+            ["Expectativa de Embarque",   data.expectativa ? Number(data.expectativa).toLocaleString("pt-BR") : "—", false],
+            ["Embarque Acumulado",         fmtE(data.acumulado2526), false],
+            ["Embarque Pendente",          exp&&acum ? fmtE(pend) : "—", true],
+            ["Semanas Restantes",          data.semanas||"—", false],
+            ["Embarque Semanal Esperado",  exp&&acum&&sem ? fmtE(semEsp) : "—", true],
+          ].map(([l,v,b]) => (
+            <div key={l} style={{
+              display:"flex", justifyContent:"space-between",
+              padding:"4px 0", borderBottom:"1px solid #ffffff08",
+            }}>
+              <span style={{fontSize:10, color:"#EFE8D888", letterSpacing:"0.05em"}}>{l}</span>
+              <span style={{
+                fontSize: b ? 13 : 11,
+                fontFamily:"monospace", fontWeight: b ? "bold" : "normal",
+                color: b ? "#EFE8D8" : "#EFE8D8aa",
+              }}>{v}</span>
             </div>
           ))}
         </div>
       </div>
-      {/* footer */}
-      <div style={{ padding:"8px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", borderTop:"1px solid #e5e0d5" }}>
-        <span style={{ fontSize:10, color:"#888", fontStyle:"italic" }}>Fonte: USDA</span>
-        <img src={logo} style={{ height:22, objectFit:"contain" }} alt="Granara" />
-      </div>
-    </div>
+    </CardShellExport>
   );
 }
 
 function CropCardExport({ label, icon, data, cropDate, logo, isSoy }) {
   const stageLabels = isSoy ? SOY_STAGES_LABELS : CORN_STAGES_LABELS;
-  const activeStages = Object.entries(stageLabels).filter(([k]) => data[k] && (data[k].atual||data[k].anoPassado));
-  const border = "1px solid #e5e0d5";
+  const activeStages = Object.entries(stageLabels).filter(([k]) => data[k]?.atual || data[k]?.anoPassado);
 
   return (
-    <div style={{ background:"#fff", width:480, fontFamily:"'Helvetica Neue',Arial,sans-serif", border:"1px solid #ddd", borderRadius:4, overflow:"hidden" }}>
-      <div style={{ background:"#002621", padding:"10px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <img src={icon} style={{ width:24, height:24, filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)", opacity:.85 }} alt="" />
-          <span style={{ fontWeight:"bold", fontSize:16, letterSpacing:"0.18em", color:"#EFE8D8" }}>{label}</span>
+    <CardShellExport logo={logo}>
+      {/* commodity header */}
+      <div style={{
+        background:"linear-gradient(90deg,#013A34,#002621)",
+        padding:"14px 20px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        borderBottom:"1px solid #AF965D44",
+      }}>
+        <div style={{display:"flex", alignItems:"center", gap:12}}>
+          <img src={icon} style={{
+            width:36, height:36,
+            filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)", opacity:.9,
+          }} alt={label} />
+          <div>
+            <div style={{fontSize:22, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
+            <div style={{fontSize:9, color:"#AF965D", letterSpacing:"0.15em"}}>PROGRESSO DAS LAVOURAS EUA</div>
+          </div>
         </div>
-        <span style={{ fontSize:9, color:"#AF965D", letterSpacing:"0.1em" }}>PROGRESSO DAS LAVOURAS EUA</span>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:9, color:"#65562E", letterSpacing:"0.1em"}}>USDA CROP PROGRESS</div>
+          <div style={{fontSize:11, color:"#AF965D", fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {cropDate||"—"}</div>
+        </div>
       </div>
-      <div style={{ background:"#f7f4ef", padding:"5px 16px", borderBottom:"2px solid #AF965D", display:"flex", justifyContent:"space-between" }}>
-        <span style={{ fontSize:10, color:"#65562E", letterSpacing:"0.1em", fontWeight:"bold" }}>USDA · CROP PROGRESS</span>
-        <span style={{ fontSize:10, color:"#65562E", fontWeight:"bold" }}>ATÉ {cropDate||"—"}</span>
-      </div>
-      <div style={{ padding:"10px 16px 4px" }}>
+
+      {/* stages */}
+      <div style={{padding:"14px 20px 10px"}}>
         {activeStages.length === 0 && (
-          <div style={{ color:"#bbb", fontSize:12, textAlign:"center", padding:"20px 0" }}>Sem dados carregados</div>
+          <div style={{color:"#65562E", fontSize:12, textAlign:"center", padding:"24px 0"}}>
+            Sem dados carregados
+          </div>
         )}
         {activeStages.map(([k, lbl]) => (
-          <div key={k} style={{ marginBottom:8 }}>
-            <div style={{ background:"#013A34", color:"#AF965D", fontSize:10, fontWeight:"bold",
-              letterSpacing:"0.12em", padding:"4px 8px", marginBottom:4 }}>{lbl}</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"2px 0", padding:"0 4px" }}>
-              {[["ATUAL", data[k]?.atual], ["ANO PASSADO", data[k]?.anoPassado],
-                ["SEMANA PASSADA", data[k]?.semPassada], ["MÉDIA 5 ANOS", data[k]?.media5]].map(([l,v]) => (
-                <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"3px 6px" }}>
-                  <span style={{ fontSize:10, color:"#555", letterSpacing:"0.05em" }}>{l}:</span>
-                  <span style={{ fontSize:11, fontFamily:"monospace", fontWeight: l==="ATUAL" ? "bold":"normal", color:"#002621" }}>
-                    {v ? v+"%" : "—"}
-                  </span>
+          <div key={k} style={{marginBottom:10}}>
+            <div style={{
+              background:"#013A34", borderLeft:"3px solid #AF965D",
+              padding:"4px 10px", marginBottom:6,
+            }}>
+              <span style={{fontSize:10, color:"#AF965D", letterSpacing:"0.14em", fontWeight:"bold"}}>{lbl}</span>
+            </div>
+            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"2px 0", padding:"0 4px"}}>
+              {[["Atual", data[k]?.atual], ["Ano Passado", data[k]?.anoPassado],
+                ["Sem. Passada", data[k]?.semPassada], ["Média 5 Anos", data[k]?.media5]].map(([l,v])=>(
+                <div key={l} style={{display:"flex", justifyContent:"space-between", padding:"3px 8px"}}>
+                  <span style={{fontSize:10, color:"#EFE8D877", letterSpacing:"0.05em"}}>{l}</span>
+                  <span style={{
+                    fontSize: l==="Atual" ? 13 : 11,
+                    fontFamily:"monospace",
+                    fontWeight: l==="Atual" ? "bold" : "normal",
+                    color: l==="Atual" ? "#EFE8D8" : "#EFE8D8aa",
+                  }}>{v ? v+"%" : "—"}</span>
                 </div>
               ))}
             </div>
           </div>
         ))}
+
+        {/* conditions */}
         {CONDITIONS.some(c => data[c.key]?.atual) && (
-          <div style={{ background:"#f7f4ef", borderRadius:3, padding:"8px 10px", marginTop:4 }}>
-            <div style={{ fontSize:9, color:"#65562E", letterSpacing:"0.12em", marginBottom:6, fontWeight:"bold" }}>CONDIÇÕES</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:4, textAlign:"center" }}>
-              {["", "Sem. Ant.", "Atual"].map(h => (
-                <div key={h} style={{ fontSize:9, color:"#888", fontWeight:"bold", paddingBottom:4, borderBottom:border }}>{h}</div>
-              ))}
-              {CONDITIONS.map(c => [
-                <div key={c.key+"l"} style={{ fontSize:10, color:"#555", textAlign:"left", padding:"2px 0" }}>{c.label}</div>,
-                <div key={c.key+"a"} style={{ fontSize:11, fontFamily:"monospace", color:"#555" }}>{data[c.key]?.anterior ? data[c.key].anterior+"%" : "—"}</div>,
-                <div key={c.key+"b"} style={{ fontSize:12, fontFamily:"monospace", fontWeight:"bold",
-                  color: c.key==="bom" ? "#217a4b" : c.key==="ruim" ? "#b92020" : "#002621" }}>
-                  {data[c.key]?.atual ? data[c.key].atual+"%" : "—"}
-                </div>,
-              ])}
+          <div style={{
+            background:"#013A3444", border:"1px solid #AF965D22",
+            borderRadius:4, padding:"10px 14px", marginTop:6,
+          }}>
+            <div style={{fontSize:9, color:"#AF965D", letterSpacing:"0.15em",
+              marginBottom:8, borderBottom:"1px solid #AF965D33", paddingBottom:4}}>
+              CONDIÇÕES
             </div>
+            {CONDITIONS.map(c => (
+              <div key={c.key} style={{
+                display:"flex", justifyContent:"space-between", alignItems:"center",
+                padding:"5px 0", borderBottom:"1px solid #ffffff08",
+              }}>
+                <span style={{fontSize:10, color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#EFE8D899"}}>
+                  {c.label}
+                </span>
+                <div style={{display:"flex", gap:8, alignItems:"center", fontFamily:"monospace"}}>
+                  <span style={{fontSize:10, color:"#EFE8D844"}}>
+                    {data[c.key]?.anterior ? data[c.key].anterior+"%" : "—"}
+                  </span>
+                  <span style={{color:"#65562E"}}>→</span>
+                  <span style={{
+                    fontSize:14, fontWeight:"bold",
+                    color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#EFE8D8",
+                  }}>
+                    {data[c.key]?.atual ? data[c.key].atual+"%" : "—"}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
-      <div style={{ padding:"8px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", borderTop:border }}>
-        <span style={{ fontSize:10, color:"#888", fontStyle:"italic" }}>Fonte: USDA</span>
-        <img src={logo} style={{ height:22, objectFit:"contain" }} alt="Granara" />
-      </div>
-    </div>
+    </CardShellExport>
   );
 }
 
-function ExportTab({ exportData, cropData, reportDate, cropDate }) {
-  const [downloading, setDownloading] = useState({});
+// PNG download via canvas — inlines images first to avoid CORS issues
+async function downloadCardPNG(elementId, filename) {
+  const el = document.getElementById(elementId);
+  if (!el) { alert("Elemento não encontrado: " + elementId); return; }
 
-  async function downloadPNG(id, filename) {
-    setDownloading(p => ({...p, [id]: true}));
+  // Use html2canvas from CDN via script tag injection (avoids ESM import issues)
+  if (!window.html2canvas) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  const canvas = await window.html2canvas(el, {
+    scale: 2,
+    backgroundColor: "#002621",
+    useCORS: true,
+    allowTaint: true,
+    logging: false,
+  });
+
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+function ExportTab({ exportData, cropData, reportDate, cropDate }) {
+  const [dl, setDl] = useState({});
+
+  async function handleDL(id, filename) {
+    setDl(p => ({...p, [id]: true}));
     try {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const { default: html2canvas } = await import("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.esm.min.js");
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
-      const link = document.createElement("a");
-      link.download = filename;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+      await downloadCardPNG(id, filename);
     } catch(e) {
       alert("Erro ao gerar PNG: " + e.message);
     } finally {
-      setDownloading(p => ({...p, [id]: false}));
+      setDl(p => ({...p, [id]: false}));
     }
   }
 
-  const btnStyle = (loading) => ({
-    background: loading ? "transparent" : "#AF965D",
-    border: "1px solid #AF965D",
-    borderRadius: 2,
-    color: loading ? "#AF965D" : "#002621",
-    fontFamily: "'Cinzel',serif",
-    fontSize: 9,
-    letterSpacing: "0.1em",
-    padding: "5px 12px",
-    cursor: loading ? "wait" : "pointer",
-    fontWeight: "bold",
-  });
-
-  const Section = ({ title, id, children, filename }) => (
-    <div style={{ marginBottom: 32 }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-        <div style={{ fontSize:11, color:"#AF965D", fontFamily:"'Cinzel',serif", letterSpacing:"0.15em" }}>{title}</div>
-        <button style={btnStyle(downloading[id])} onClick={() => downloadPNG(id, filename)}>
-          {downloading[id] ? "⏳ GERANDO..." : "⬇ BAIXAR PNG"}
+  const Section = ({title, id, filename, children}) => (
+    <div style={{marginBottom:36}}>
+      <div style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        marginBottom:12,
+      }}>
+        <div style={{fontSize:10, color:"#AF965D", fontFamily:"'Cinzel',serif", letterSpacing:"0.18em"}}>{title}</div>
+        <button
+          onClick={() => handleDL(id, filename)}
+          disabled={dl[id]}
+          style={{
+            background: dl[id] ? "transparent" : "#AF965D",
+            border:"1px solid #AF965D", borderRadius:2,
+            color: dl[id] ? "#AF965D" : "#002621",
+            fontFamily:"'Cinzel',serif", fontSize:9, letterSpacing:"0.12em",
+            padding:"6px 14px", cursor: dl[id] ? "wait" : "pointer", fontWeight:"bold",
+          }}>
+          {dl[id] ? "⏳ GERANDO..." : "⬇ BAIXAR PNG"}
         </button>
       </div>
-      <div id={id} style={{ display:"inline-block" }}>
+      <div id={id} style={{display:"inline-block"}}>
         {children}
       </div>
     </div>
   );
 
+  const date = reportDate || "export";
+  const cdate = cropDate || "crop";
+
   return (
-    <div style={{ padding:"20px 26px 60px", maxWidth:1300, margin:"0 auto" }}>
-      <div style={{ fontSize:11, color:"#AF965D88", fontFamily:"'Cinzel',serif", letterSpacing:"0.1em", marginBottom:20 }}>
-        CARDS PRONTOS PARA COMPARTILHAR · FUNDO BRANCO · COM MARCA GRANARA
+    <div style={{padding:"20px 26px 60px", maxWidth:1300, margin:"0 auto"}}>
+      <div style={{fontSize:10, color:"#AF965D55", fontFamily:"'Cinzel',serif",
+        letterSpacing:"0.12em", marginBottom:24}}>
+        CARDS PRONTOS PARA COMPARTILHAR · IDENTIDADE GRANARA
       </div>
 
-      {/* ── INSPEÇÕES INDIVIDUAIS ── */}
-      <Section title="INSPEÇÕES · MILHO" id="card-export-corn" filename={`granara-milho-${reportDate||"export"}.png`}>
+      <Section title="INSPEÇÕES · MILHO" id="ec-corn" filename={`granara-milho-${date}.png`}>
         <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={LOGO} />
       </Section>
 
-      <Section title="INSPEÇÕES · SOJA" id="card-export-soy" filename={`granara-soja-${reportDate||"export"}.png`}>
+      <Section title="INSPEÇÕES · SOJA" id="ec-soy" filename={`granara-soja-${date}.png`}>
         <ExportCardExport label="SOJA" icon={ICON_SOY} data={exportData.soy} reportDate={reportDate} logo={LOGO} />
       </Section>
 
-      {/* ── INSPEÇÕES COMBINADO ── */}
-      <Section title="INSPEÇÕES · MILHO + SOJA" id="card-export-both" filename={`granara-exportacoes-${reportDate||"export"}.png`}>
-        <div style={{ display:"flex", gap:12 }}>
+      <Section title="INSPEÇÕES · MILHO + SOJA" id="ec-both" filename={`granara-exportacoes-${date}.png`}>
+        <div style={{display:"flex", gap:16}}>
           <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={LOGO} />
           <ExportCardExport label="SOJA"  icon={ICON_SOY}  data={exportData.soy}  reportDate={reportDate} logo={LOGO} />
         </div>
       </Section>
 
-      {/* ── CROP INDIVIDUAIS ── */}
-      <Section title="LAVOURAS · MILHO" id="card-crop-corn" filename={`granara-milho-lavoura-${cropDate||"crop"}.png`}>
+      <Section title="LAVOURAS · MILHO" id="cc-corn" filename={`granara-milho-lavoura-${cdate}.png`}>
         <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={LOGO} isSoy={false} />
       </Section>
 
-      <Section title="LAVOURAS · SOJA" id="card-crop-soy" filename={`granara-soja-lavoura-${cropDate||"crop"}.png`}>
+      <Section title="LAVOURAS · SOJA" id="cc-soy" filename={`granara-soja-lavoura-${cdate}.png`}>
         <CropCardExport label="SOJA" icon={ICON_SOY} data={cropData.soy} cropDate={cropDate} logo={LOGO} isSoy={true} />
       </Section>
 
-      {/* ── CROP COMBINADO ── */}
-      <Section title="LAVOURAS · MILHO + SOJA" id="card-crop-both" filename={`granara-lavouras-${cropDate||"crop"}.png`}>
-        <div style={{ display:"flex", gap:12 }}>
+      <Section title="LAVOURAS · MILHO + SOJA" id="cc-both" filename={`granara-lavouras-${cdate}.png`}>
+        <div style={{display:"flex", gap:16}}>
           <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={LOGO} isSoy={false} />
           <CropCardExport label="SOJA"  icon={ICON_SOY}  data={cropData.soy}  cropDate={cropDate} logo={LOGO} isSoy={true}  />
         </div>
