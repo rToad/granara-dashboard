@@ -176,7 +176,7 @@ function FField({label,value,onChange,sm}) {
       <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.1em",marginBottom:2}}>{label}</div>
       <input value={value} onChange={e=>onChange(e.target.value)} placeholder="—"
         style={{width:"100%",background:"rgba(0,0,0,0.25)",border:`1px solid ${G.goldDark}88`,
-          borderRadius:3,padding:sm?"4px 7px":"6px 9px",color:G.cream,
+          borderRadius:3,padding:sm?"4px 7px":"6px 9px",color:"#ffffff",
           fontFamily:"'Courier New',monospace",fontSize:sm?11:13,boxSizing:"border-box",outline:"none"}}
         onFocus={e=>e.target.style.borderColor=G.gold}
         onBlur={e=>e.target.style.borderColor=`${G.goldDark}88`}
@@ -338,7 +338,7 @@ function CropCard({label,icon,isSoy,data,onUpdate,cropDate}) {
                   ["Sem. Passada",data[k]?.semPassada],["Média 5 Anos",data[k]?.media5]].map(([l,v])=>(
                   <div key={l} style={{display:"flex",justifyContent:"space-between",fontSize:10,padding:"2px 4px"}}>
                     <span style={{color:G.cream+"77",fontFamily:"'Cinzel',serif"}}>{l}</span>
-                    <span style={{color:l==="Atual"?G.cream:G.cream+"bb",fontFamily:"monospace",
+                    <span style={{color:"#ffffff",fontFamily:"monospace",
                       fontWeight:l==="Atual"?"bold":"normal"}}>{v?v+"%":"—"}</span>
                   </div>
                 ))}
@@ -438,7 +438,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
       padding:"6px 0", borderBottom:"1px solid #ffffff0a",
     }}>
       <span style={{
-        fontSize:10, color: accent ? "#AF965D" : "#EFE8D899",
+        fontSize:10, color: accent ? "#AF965D" : "#b8c8b8",
         letterSpacing:"0.07em", textTransform:"uppercase",
         fontWeight: bold ? "600" : "normal",
       }}>{l}</span>
@@ -446,7 +446,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
         fontSize: bold ? 16 : 13,
         fontFamily:"'Courier New',monospace",
         fontWeight: bold ? "bold" : "normal",
-        color: bold ? "#EFE8D8" : "#EFE8D8bb",
+        color: "#ffffff",
       }}>{value}</span>
     </div>
   );
@@ -520,11 +520,11 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
               display:"flex", justifyContent:"space-between",
               padding:"4px 0", borderBottom:"1px solid #ffffff08",
             }}>
-              <span style={{fontSize:10, color:"#EFE8D888", letterSpacing:"0.05em"}}>{l}</span>
+              <span style={{fontSize:10, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
               <span style={{
                 fontSize: b ? 13 : 11,
                 fontFamily:"monospace", fontWeight: b ? "bold" : "normal",
-                color: b ? "#EFE8D8" : "#EFE8D8aa",
+                color: "#ffffff",
               }}>{v}</span>
             </div>
           ))}
@@ -582,12 +582,12 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy }
               {[["Atual", data[k]?.atual], ["Ano Passado", data[k]?.anoPassado],
                 ["Sem. Passada", data[k]?.semPassada], ["Média 5 Anos", data[k]?.media5]].map(([l,v])=>(
                 <div key={l} style={{display:"flex", justifyContent:"space-between", padding:"3px 8px"}}>
-                  <span style={{fontSize:10, color:"#EFE8D877", letterSpacing:"0.05em"}}>{l}</span>
+                  <span style={{fontSize:10, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
                   <span style={{
                     fontSize: l==="Atual" ? 13 : 11,
                     fontFamily:"monospace",
                     fontWeight: l==="Atual" ? "bold" : "normal",
-                    color: l==="Atual" ? "#EFE8D8" : "#EFE8D8aa",
+                    color: l==="Atual" ? "#EFE8D8" : "#b8c8b8",
                   }}>{v ? v+"%" : "—"}</span>
                 </div>
               ))}
@@ -610,17 +610,17 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy }
                 display:"flex", justifyContent:"space-between", alignItems:"center",
                 padding:"5px 0", borderBottom:"1px solid #ffffff08",
               }}>
-                <span style={{fontSize:10, color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#EFE8D899"}}>
+                <span style={{fontSize:10, color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#b8c8b8"}}>
                   {c.label}
                 </span>
                 <div style={{display:"flex", gap:8, alignItems:"center", fontFamily:"monospace"}}>
-                  <span style={{fontSize:10, color:"#EFE8D844"}}>
+                  <span style={{fontSize:10, color:"#aaaaaa"}}>
                     {data[c.key]?.anterior ? data[c.key].anterior+"%" : "—"}
                   </span>
                   <span style={{color:"#65562E"}}>→</span>
                   <span style={{
                     fontSize:14, fontWeight:"bold",
-                    color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#EFE8D8",
+                    color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#ffffff",
                   }}>
                     {data[c.key]?.atual ? data[c.key].atual+"%" : "—"}
                   </span>
@@ -864,8 +864,8 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
             ["Vendas Acumuladas 2024/25",  data.vendasAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:10,color:b?"#AF965D":"#EFE8D888",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
-              <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:b?"#EFE8D8":"#EFE8D8aa"}}>{fmtS(v)}</span>
+              <span style={{fontSize:10,color:b?"#AF965D":"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
             </div>
           ))}
           {dVendas!==null&&(
@@ -893,8 +893,8 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
             ["Embarques Acumulados 2024/25",data.embarqueAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:10,color:b?"#AF965D":"#EFE8D888",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
-              <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:b?"#EFE8D8":"#EFE8D8aa"}}>{fmtS(v)}</span>
+              <span style={{fontSize:10,color:b?"#AF965D":"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
             </div>
           ))}
         </div>
@@ -1072,7 +1072,7 @@ export default function App() {
                 <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.1em"}}>DATA DO RELATÓRIO</div>
                 <input value={reportDate} onChange={e=>setRD(e.target.value)} placeholder="Ex: MAR 26, 2026"
                   style={{background:"rgba(0,0,0,0.3)",border:`1px solid ${G.goldDark}`,borderRadius:2,
-                    padding:"7px 12px",color:G.cream,fontFamily:"monospace",fontSize:12}}/>
+                    padding:"7px 12px",color:"#ffffff",fontFamily:"monospace",fontSize:12}}/>
               </div>
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
@@ -1091,7 +1091,7 @@ export default function App() {
                 <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.1em"}}>DATA DO RELATÓRIO</div>
                 <input value={salesDate} onChange={e=>setSalesDate(e.target.value)} placeholder="Ex: 04/09/2026"
                   style={{background:"rgba(0,0,0,0.3)",border:`1px solid ${G.goldDark}`,borderRadius:2,
-                    padding:"7px 12px",color:G.cream,fontFamily:"monospace",fontSize:12}}/>
+                    padding:"7px 12px",color:"#ffffff",fontFamily:"monospace",fontSize:12}}/>
               </div>
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
@@ -1115,7 +1115,7 @@ export default function App() {
                 <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.1em"}}>DATA DO RELATÓRIO</div>
                 <input value={cropDate} onChange={e=>setCD(e.target.value)} placeholder="Ex: April 20, 2026"
                   style={{background:"rgba(0,0,0,0.3)",border:`1px solid ${G.goldDark}`,borderRadius:2,
-                    padding:"7px 12px",color:G.cream,fontFamily:"monospace",fontSize:12}}/>
+                    padding:"7px 12px",color:"#ffffff",fontFamily:"monospace",fontSize:12}}/>
               </div>
             </div>
             {showCropUrl && (
@@ -1128,7 +1128,7 @@ export default function App() {
                   <input value={cropManualUrl} onChange={e=>setCropManualUrl(e.target.value)}
                     placeholder="https://esmis.nal.usda.gov/sites/default/release-files/.../prog1626.txt"
                     style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1px solid ${G.gold}`,borderRadius:2,
-                      padding:"7px 12px",color:G.cream,fontFamily:"monospace",fontSize:11,boxSizing:"border-box"}}/>
+                      padding:"7px 12px",color:"#ffffff",fontFamily:"monospace",fontSize:11,boxSizing:"border-box"}}/>
                 </div>
                 <button onClick={()=>fetchCrop(cropManualUrl)} disabled={!cropManualUrl||loading.crop}
                   style={{background:G.gold,border:"none",borderRadius:2,color:G.darkGreen,
