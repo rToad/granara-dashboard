@@ -404,18 +404,29 @@ export default function App() {
     }
   },[]);
 
-  const fetchCrop = useCallback(async () => {
+  const [cropManualUrl, setCropManualUrl] = useState("");
+  const [showCropUrl,   setShowCropUrl]   = useState(false);
+
+  const fetchCrop = useCallback(async (manualUrl) => {
     setLd(p=>({...p,crop:true})); setSt(p=>({...p,crop:"Buscando..."}));
     try {
-      const res  = await fetch("/.netlify/functions/proxy-crop");
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const url = manualUrl
+        ? `/.netlify/functions/proxy-crop?url=${encodeURIComponent(manualUrl)}`
+        : "/.netlify/functions/proxy-crop";
+      const res  = await fetch(url);
       const text = await res.text();
+      if(!res.ok) {
+        // Show manual URL input on 404
+        setShowCropUrl(true);
+        throw new Error(text.split("\n")[0]);
+      }
+      setShowCropUrl(false);
       const data = parseCropProgress(text);
       setCD2({corn:data.corn, soy:data.soy});
       if(data.date) setCD(data.date);
       setSt(p=>({...p,crop:`✓ Atualizado · ${data.date}`}));
     } catch(e) {
-      setSt(p=>({...p,crop:`✗ Erro: ${e.message}`}));
+      setSt(p=>({...p,crop:`✗ ${e.message}`}));
     } finally {
       setLd(p=>({...p,crop:false}));
     }
@@ -517,7 +528,7 @@ export default function App() {
         {tab==="crop" && (
           <div>
             <div style={{display:"flex",gap:14,alignItems:"flex-end",marginBottom:18,flexWrap:"wrap"}}>
-              <BtnFetch onClick={fetchCrop} loading={loading.crop} status={status.crop} label="CARREGAR CROP PROGRESS" />
+              <BtnFetch onClick={()=>fetchCrop()} loading={loading.crop} status={status.crop} label="CARREGAR CROP PROGRESS" />
               <div style={{display:"flex",flexDirection:"column",gap:3}}>
                 <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.1em"}}>DATA DO RELATÓRIO</div>
                 <input value={cropDate} onChange={e=>setCD(e.target.value)} placeholder="Ex: April 20, 2026"
@@ -525,6 +536,26 @@ export default function App() {
                     padding:"7px 12px",color:G.cream,fontFamily:"monospace",fontSize:12}}/>
               </div>
             </div>
+            {showCropUrl && (
+              <div style={{display:"flex",gap:8,alignItems:"flex-end",marginBottom:14,
+                background:`${G.midGreen}88`,border:`1px solid ${G.goldDark}`,borderRadius:4,padding:"10px 14px"}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.1em",marginBottom:4}}>
+                    COLE O LINK DO .TXT DO ESMIS
+                  </div>
+                  <input value={cropManualUrl} onChange={e=>setCropManualUrl(e.target.value)}
+                    placeholder="https://esmis.nal.usda.gov/sites/default/release-files/.../prog1626.txt"
+                    style={{width:"100%",background:"rgba(0,0,0,0.3)",border:`1px solid ${G.gold}`,borderRadius:2,
+                      padding:"7px 12px",color:G.cream,fontFamily:"monospace",fontSize:11,boxSizing:"border-box"}}/>
+                </div>
+                <button onClick={()=>fetchCrop(cropManualUrl)} disabled={!cropManualUrl||loading.crop}
+                  style={{background:G.gold,border:"none",borderRadius:2,color:G.darkGreen,
+                    fontFamily:"'Cinzel',serif",fontSize:10,letterSpacing:"0.1em",
+                    padding:"8px 14px",cursor:"pointer",fontWeight:"bold",whiteSpace:"nowrap"}}>
+                  ⬇ BUSCAR
+                </button>
+              </div>
+            )}
             <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
               <CropCard label="MILHO" icon={ICON_CORN} isSoy={false} data={cropData.corn} onUpdate={(s,f,v)=>upCrop("corn",s,f,v)} cropDate={cropDate}/>
               <CropCard label="SOJA"  icon={ICON_SOY}  isSoy={true}  data={cropData.soy}  onUpdate={(s,f,v)=>upCrop("soy",s,f,v)}  cropDate={cropDate}/>
