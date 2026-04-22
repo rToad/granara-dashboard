@@ -1,94 +1,93 @@
-exports.handler = async () => {
-  // The ESMIS index page blocks server-side fetch (403).
-  // Strategy 1: ESMIS JSON:API endpoint (Drupal) — clean, no scraping.
-  // Strategy 2: Scrape the specific release page by calculated ISO week date.
+exports.handler = async (event) => {
+  const headers = { "Access-Control-Allow-Origin": "*", "Content-Type": "text/plain; charset=utf-8" };
 
-  function getWeekCandidates() {
-    const now = new Date();
-    const results = [];
-    for (let offset = 0; offset <= 2; offset++) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - offset * 7);
-      const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-      const dow = tmp.getUTCDay() || 7;
-      tmp.setUTCDate(tmp.getUTCDate() + 4 - dow);
-      const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
-      const week = Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
-      // Get Monday of this ISO week
-      const jan4 = new Date(Date.UTC(d.getFullYear(), 0, 4));
-      const jan4dow = jan4.getUTCDay() || 7;
-      const firstMon = new Date(jan4);
-      firstMon.setUTCDate(jan4.getUTCDate() - (jan4dow - 1));
-      const monday = new Date(firstMon);
-      monday.setUTCDate(firstMon.getUTCDate() + (week - 1) * 7);
-      results.push(monday.toISOString().split("T")[0]); // e.g. "2026-04-20"
+  // Se passar ?url=... na query, usa direto (modo manual)
+  const manualUrl = event.queryStringParameters?.url;
+  if (manualUrl && manualUrl.includes("esmis.nal.usda.gov")) {
+    try {
+      const res = await fetch(manualUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return { statusCode: 200, headers, body: await res.text() };
+    } catch (e) {
+      return { statusCode: 500, headers, body: `Erro ao buscar URL manual: ${e.message}` };
     }
-    return results;
   }
 
+  // Automático: tenta o JSON:API do Drupal com campos explícitos
   async function tryJsonApi() {
-    const url = "https://esmis.nal.usda.gov/jsonapi/node/publication_release" +
-      "?filter[field_publication.field_short_name]=crop-progress" +
-      "&sort=-field_release_date&page[limit]=1";
-    try {
-      const res = await fetch(url, {
-        headers: { "Accept": "application/vnd.api+json", "User-Agent": "Mozilla/5.0" }
-      });
-      if (!res.ok) return null;
-      const json = await res.json();
-      const fileUrl = json?.data?.[0]?.attributes?.field_file_txt?.uri?.url;
-      if (fileUrl) return fileUrl.startsWith("http") ? fileUrl : "https://esmis.nal.usda.gov" + fileUrl;
-    } catch {}
+    const endpoints = [
+      "https://esmis.nal.usda.gov/jsonapi/node/publication_release?filter[field_publication.field_short_name]=crop-progress&sort=-created&page[limit]=1&include=field_files",
+      "https://esmis.nal.usda.gov/jsonapi/node/publication_release?filter[field_publication.field_short_name]=crop-progress&sort=-field_release_date&page[limit]=1",
+    ];
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, { headers: { "Accept": "application/vnd.api+json", "User-Agent": "Mozilla/5.0" } });
+        if (!res.ok) continue;
+        const json = await res.json();
+        const d = json?.data?.[0];
+        if (!d) continue;
+        // Try various attribute paths where the txt URL might live
+        const candidates = [
+          d?.attributes?.field_file_txt?.uri?.url,
+          d?.attributes?.field_files?.[0]?.uri?.url,
+        ].filter(Boolean);
+        for (const c of candidates) {
+          if (c?.endsWith(".txt")) return c.startsWith("http") ? c : "https://esmis.nal.usda.gov" + c;
+        }
+        // Try included files
+        const included = json?.included || [];
+        for (const inc of included) {
+          const uri = inc?.attributes?.uri?.url || inc?.attributes?.url;
+          if (uri?.endsWith(".txt")) return uri.startsWith("http") ? uri : "https://esmis.nal.usda.gov" + uri;
+        }
+      } catch {}
+    }
     return null;
   }
 
-  async function tryReleasePage(dateStr) {
-    const url = `https://esmis.nal.usda.gov/publication/crop-progress/${dateStr}`;
-    try {
-      const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
-      if (!res.ok) return null;
-      const html = await res.text();
-      const m = html.match(/href="(https:\/\/esmis\.nal\.usda\.gov\/sites\/default\/release-files\/[^"]+\.txt)"/);
-      return m ? m[1] : null;
-    } catch {}
+  // Tenta o endpoint de release individual por data calculada
+  async function tryByDate() {
+    const now = new Date();
+    for (let offset = 0; offset <= 3; offset++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - offset * 7);
+      // Achar segunda-feira desta semana
+      const dow = d.getUTCDay(); // 0=dom
+      const monday = new Date(d);
+      monday.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+      const dateStr = monday.toISOString().split("T")[0];
+      const url = `https://esmis.nal.usda.gov/publication/crop-progress/${dateStr}`;
+      try {
+        const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html" } });
+        if (!res.ok) continue;
+        const html = await res.text();
+        const m = html.match(/https:\/\/esmis\.nal\.usda\.gov\/sites\/default\/release-files\/[^"'\s]+\.txt/);
+        if (m) return m[0];
+      } catch {}
+    }
     return null;
   }
 
   try {
-    let txtUrl = await tryJsonApi();
-
-    if (!txtUrl) {
-      for (const dateStr of getWeekCandidates()) {
-        txtUrl = await tryReleasePage(dateStr);
-        if (txtUrl) break;
-      }
-    }
+    let txtUrl = await tryJsonApi() || await tryByDate();
 
     if (!txtUrl) {
       return {
         statusCode: 404,
-        headers: { "Access-Control-Allow-Origin": "*" },
-        body: "Arquivo não encontrado. O relatório é publicado às 17h ET toda segunda-feira.",
+        headers,
+        body: [
+          "Não foi possível localizar o arquivo automaticamente.",
+          "Use o modo manual: adicione ?url=LINK_DO_TXT na chamada da função.",
+          `Exemplo: /.netlify/functions/proxy-crop?url=https://esmis.nal.usda.gov/sites/default/release-files/795867/prog1626.txt`,
+        ].join("\n"),
       };
     }
 
-    const txtRes = await fetch(txtUrl);
-    if (!txtRes.ok) throw new Error(`HTTP ${txtRes.status} ao buscar ${txtUrl}`);
-    const text = await txtRes.text();
+    const res = await fetch(txtUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status} em ${txtUrl}`);
+    return { statusCode: 200, headers, body: await res.text() };
 
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Access-Control-Allow-Origin": "*",
-      },
-      body: text,
-    };
   } catch (e) {
-    return {
-      statusCode: 500,
-      headers: { "Access-Control-Allow-Origin": "*" },
-      body: `Erro: ${e.message}`,
-    };
+    return { statusCode: 500, headers, body: `Erro: ${e.message}` };
   }
 };
