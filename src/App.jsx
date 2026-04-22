@@ -16,7 +16,7 @@ const G = {
 // ── Parsers ───────────────────────────────────────────────────────────────────
 function parseAMS(text) {
   // Find the main summary table and extract CORN and SOYBEANS rows
-  const lines = text.split("\n");
+  const lines = text.split("\n").map(l => l.replace(/\r/g, ""));
   let result = { corn: {}, soy: {}, reportDate: "", weekEnding: "" };
 
   // Extract week ending date from header
@@ -31,7 +31,7 @@ function parseAMS(text) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     // CORN row: CORN  1,789,524   1,702,651   1,718,304   46,372,846   34,071,068
-    const cornMatch = line.match(/^CORN\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/);
+    const cornMatch = line.match(/^CORN\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/i) || line.match(/CORN\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/);
     if (cornMatch) {
       result.corn = {
         semanaAtual:   cornMatch[1].replace(/,/g, ""),
@@ -42,7 +42,7 @@ function parseAMS(text) {
       };
     }
     // SOYBEANS row
-    const soyMatch = line.match(/^SOYBEANS\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/);
+    const soyMatch = line.match(/^SOYBEANS\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/i) || line.match(/SOYBEANS\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/);
     if (soyMatch) {
       result.soy = {
         semanaAtual:   soyMatch[1].replace(/,/g, ""),
