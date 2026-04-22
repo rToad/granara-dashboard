@@ -789,16 +789,22 @@ function parseSales(xmlText) {
 
       if (!target.week || mktWeek > target.week) {
         target.week = mktWeek;
-        if (!result.date) result.date = period;
+        if (!result.date) {
+        // Convert MM/DD/YYYY to DD/MM/YYYY
+        const parts = period.split("/");
+        result.date = parts.length === 3 ? `${parts[1]}/${parts[0]}/${parts[2]}` : period;
+      }
 
-        target.vendasSemana        = d.getAttribute("NewSales")                       || "";
+        target.vendasSemana        = d.getAttribute("NetSales")                        || "";
         target.vendasAcum2526      = d.getAttribute("TotalCommitment")                || "";
-        target.vendasAcum2425      = d.getAttribute("PreviousMKTYearAccumulatedExports") || "";
+        // Acum 24/25 = embarques acumulados + pendentes do ano anterior
+        const prevAcum  = parseFloat(d.getAttribute("PreviousMKTYearAccumulatedExports") || "0");
+        const prevOut   = parseFloat(d.getAttribute("PreviousMKTYearOutstandingSales")   || "0");
+        target.vendasAcum2425      = String(prevAcum + prevOut);
         target.embarqueSemana      = d.getAttribute("WeeklyExports")                  || "";
         target.embarqueAcum2526    = d.getAttribute("AccumulatedExports")             || "";
         target.embarquePendente    = d.getAttribute("OutstandingSales")               || "";
         target.expectativa         = d.getAttribute("WASDEReportProjectionsQuantity") || "";
-        // PreviousMKTYearAccumulatedExports for acum 24/25 embarques
         target.embarqueAcum2425    = d.getAttribute("PreviousMKTYearAccumulatedExports") || "";
       }
     });
@@ -812,7 +818,9 @@ function parseSales(xmlText) {
 function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
   const fmtS = v => {
     const n = parseFloat(String(v||"").replace(/,/g,"."));
-    return isNaN(n)||v===""?"—":n.toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1});
+    if (isNaN(n) || v === "") return "—";
+    // FAS data is in thousands — multiply by 1000 for full number display
+    return (n * 1000).toLocaleString("pt-BR", {minimumFractionDigits:0, maximumFractionDigits:0});
   };
   const pS = (a,b) => {
     const na=parseFloat(String(a).replace(/,/g,".")), nb=parseFloat(String(b).replace(/,/g,"."));
@@ -836,7 +844,7 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
           <img src={icon} style={{width:36,height:36,filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)",opacity:.9}} alt={label}/>
           <div>
             <div style={{fontSize:22,fontWeight:"bold",letterSpacing:"0.2em",color:"#EFE8D8"}}>{label}</div>
-            <div style={{fontSize:9,color:"#AF965D",letterSpacing:"0.15em"}}>EXPORTAÇÕES E VENDAS EUA · EM MIL TONELADAS</div>
+            <div style={{fontSize:9,color:"#AF965D",letterSpacing:"0.15em"}}>EXPORTAÇÕES E VENDAS EUA · EM TONELADAS MÉTRICAS</div>
           </div>
         </div>
         <div style={{textAlign:"right"}}>
@@ -874,7 +882,7 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
             <div style={{fontSize:9,color:"#AF965D",letterSpacing:"0.15em",fontWeight:"bold"}}>EMBARQUES</div>
             {data.expectativa && (
               <div style={{fontSize:10,color:"#AF965D",fontFamily:"monospace",fontWeight:"bold"}}>
-                EXPECTATIVA: {parseFloat(data.expectativa).toLocaleString("pt-BR")}
+                EXPECTATIVA: {(parseFloat(data.expectativa)*1000).toLocaleString("pt-BR")}
               </div>
             )}
           </div>
