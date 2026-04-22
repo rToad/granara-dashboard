@@ -664,7 +664,7 @@ async function downloadCardPNG(elementId, filename) {
   link.click();
 }
 
-function ExportTab({ exportData, cropData, reportDate, cropDate }) {
+function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, salesDate }) {
   const [dl, setDl] = useState({});
 
   async function handleDL(id, filename) {
@@ -729,6 +729,26 @@ function ExportTab({ exportData, cropData, reportDate, cropDate }) {
         </div>
       </Section>
 
+
+      <Section title="VENDAS · MILHO" id="sc-corn" filename={`granara-milho-vendas-${salesDate||"sales"}.png`}>
+        <SalesCardExport label="MILHO" icon={ICON_CORN} data={salesData.corn} salesDate={salesDate}
+          logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+      </Section>
+
+      <Section title="VENDAS · SOJA" id="sc-soy" filename={`granara-soja-vendas-${salesDate||"sales"}.png`}>
+        <SalesCardExport label="SOJA" icon={ICON_SOY} data={salesData.soy} salesDate={salesDate}
+          logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+      </Section>
+
+      <Section title="VENDAS · MILHO + SOJA" id="sc-both" filename={`granara-vendas-${salesDate||"sales"}.png`}>
+        <div style={{display:"flex", gap:16}}>
+          <SalesCardExport label="MILHO" icon={ICON_CORN} data={salesData.corn} salesDate={salesDate}
+            logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+          <SalesCardExport label="SOJA"  icon={ICON_SOY}  data={salesData.soy}  salesDate={salesDate}
+            logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+        </div>
+      </Section>
+
       <Section title="LAVOURAS · MILHO" id="cc-corn" filename={`granara-milho-lavoura-${cdate}.png`}>
         <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} isSoy={false} />
       </Section>
@@ -747,13 +767,141 @@ function ExportTab({ exportData, cropData, reportDate, cropDate }) {
   );
 }
 
+
+// ── Sales Parser ──────────────────────────────────────────────────────────────
+function parseSales(xmlText) {
+  const result = { date:"", corn:{}, soy:{} };
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, "text/xml");
+    const details = doc.querySelectorAll("Details");
+
+    details.forEach(d => {
+      const name = d.getAttribute("CommodityName") || "";
+      const isCorn = name.includes("CORN - UNMILLED") && !name.includes("SORGHUM");
+      const isSoy  = name.includes("SOYBEANS") && !name.includes("CAKE") && !name.includes("MEAL") && !name.includes("OIL");
+      if (!isCorn && !isSoy) return;
+
+      const period = d.getAttribute("PeriodEndingDate") || "";
+      // Use most recent (week 45 > week 44)
+      const mktWeek = parseInt(d.getAttribute("MarketingYearWeekNumber") || "0");
+      const target  = isCorn ? result.corn : result.soy;
+
+      if (!target.week || mktWeek > target.week) {
+        target.week = mktWeek;
+        if (!result.date) result.date = period;
+
+        target.vendasSemana        = d.getAttribute("NewSales")                       || "";
+        target.vendasAcum2526      = d.getAttribute("TotalCommitment")                || "";
+        target.vendasAcum2425      = d.getAttribute("PreviousMKTYearAccumulatedExports") || "";
+        target.embarqueSemana      = d.getAttribute("WeeklyExports")                  || "";
+        target.embarqueAcum2526    = d.getAttribute("AccumulatedExports")             || "";
+        target.embarquePendente    = d.getAttribute("OutstandingSales")               || "";
+        target.expectativa         = d.getAttribute("WASDEReportProjectionsQuantity") || "";
+        // PreviousMKTYearAccumulatedExports for acum 24/25 embarques
+        target.embarqueAcum2425    = d.getAttribute("PreviousMKTYearAccumulatedExports") || "";
+      }
+    });
+  } catch(e) {
+    console.error("parseSales error:", e);
+  }
+  return result;
+}
+
+// ── Sales Export Card ─────────────────────────────────────────────────────────
+function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
+  const fmtS = v => {
+    const n = parseFloat(String(v||"").replace(/,/g,"."));
+    return isNaN(n)||v===""?"—":n.toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1});
+  };
+  const pS = (a,b) => {
+    const na=parseFloat(String(a).replace(/,/g,".")), nb=parseFloat(String(b).replace(/,/g,"."));
+    if(!nb) return null;
+    return (((na-nb)/nb)*100).toFixed(2);
+  };
+  const isPos = v => parseFloat(v) >= 0;
+  const arrowCol = v => isPos(v) ? "#6fcf97" : "#eb5757";
+  const dVendas = pS(data.vendasAcum2526, data.vendasAcum2425);
+
+  return (
+    <CardShellExport logo={logo} logoFooter={logoFooter}>
+      {/* commodity header */}
+      <div style={{
+        background:"linear-gradient(90deg,#013A34,#002621)",
+        padding:"14px 20px",
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        borderBottom:"1px solid #AF965D44",
+      }}>
+        <div style={{display:"flex", alignItems:"center", gap:12}}>
+          <img src={icon} style={{width:36,height:36,filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)",opacity:.9}} alt={label}/>
+          <div>
+            <div style={{fontSize:22,fontWeight:"bold",letterSpacing:"0.2em",color:"#EFE8D8"}}>{label}</div>
+            <div style={{fontSize:9,color:"#AF965D",letterSpacing:"0.15em"}}>EXPORTAÇÕES E VENDAS EUA · EM MIL TONELADAS</div>
+          </div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:9,color:"#65562E",letterSpacing:"0.1em"}}>RELATÓRIO SEMANAL</div>
+          <div style={{fontSize:11,color:"#AF965D",fontWeight:"bold",letterSpacing:"0.1em"}}>ATÉ {salesDate||"—"}</div>
+        </div>
+      </div>
+
+      <div style={{padding:"14px 20px 10px"}}>
+        {/* VENDAS block */}
+        <div style={{background:"#013A3444",border:"1px solid #AF965D22",borderRadius:4,padding:"10px 14px",marginBottom:10}}>
+          <div style={{fontSize:9,color:"#AF965D",letterSpacing:"0.15em",marginBottom:8,
+            borderBottom:"1px solid #AF965D33",paddingBottom:4,fontWeight:"bold"}}>VENDAS</div>
+          {[
+            ["Vendas da Semana 2025/26",   data.vendasSemana,   false],
+            ["Vendas Acumuladas 2025/26",  data.vendasAcum2526, true],
+            ["Vendas Acumuladas 2024/25",  data.vendasAcum2425, false],
+          ].map(([l,v,b])=>(
+            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
+              <span style={{fontSize:10,color:b?"#AF965D":"#EFE8D888",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:b?"#EFE8D8":"#EFE8D8aa"}}>{fmtS(v)}</span>
+            </div>
+          ))}
+          {dVendas!==null&&(
+            <div style={{textAlign:"right",fontSize:11,fontFamily:"monospace",color:arrowCol(dVendas),fontWeight:"bold",marginTop:2}}>
+              {isPos(dVendas)?"▲":"▼"} {Math.abs(dVendas)}% acumulado
+            </div>
+          )}
+        </div>
+
+        {/* EMBARQUES block */}
+        <div style={{background:"#013A3444",border:"1px solid #AF965D22",borderRadius:4,padding:"10px 14px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+            marginBottom:8,borderBottom:"1px solid #AF965D33",paddingBottom:4}}>
+            <div style={{fontSize:9,color:"#AF965D",letterSpacing:"0.15em",fontWeight:"bold"}}>EMBARQUES</div>
+            {data.expectativa && (
+              <div style={{fontSize:10,color:"#AF965D",fontFamily:"monospace",fontWeight:"bold"}}>
+                EXPECTATIVA: {parseFloat(data.expectativa).toLocaleString("pt-BR")}
+              </div>
+            )}
+          </div>
+          {[
+            ["Embarques da Semana",         data.embarqueSemana,   false],
+            ["Embarques Pendentes",         data.embarquePendente, false],
+            ["Embarques Acumulados 2025/26",data.embarqueAcum2526, true],
+            ["Embarques Acumulados 2024/25",data.embarqueAcum2425, false],
+          ].map(([l,v,b])=>(
+            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
+              <span style={{fontSize:10,color:b?"#AF965D":"#EFE8D888",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:b?"#EFE8D8":"#EFE8D8aa"}}>{fmtS(v)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </CardShellExport>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab]       = useState("export");
   const [reportDate, setRD] = useState("");
   const [cropDate,   setCD] = useState("");
-  const [loading,  setLd]   = useState({ams:false, crop:false});
-  const [status,   setSt]   = useState({ams:"", crop:""});
+  const [loading,  setLd]   = useState({ams:false, crop:false, sales:false});
+  const [status,   setSt]   = useState({ams:"", crop:"", sales:""});
 
   const [exportData, setED] = useState({
     corn:{semanaAtual:"",semanaAnterior:"",anoAnterior:"",acumulado2526:"",acumulado2425:"",expectativa:"",semanas:""},
@@ -787,6 +935,8 @@ export default function App() {
 
   const [cropManualUrl, setCropManualUrl] = useState("");
   const [showCropUrl,   setShowCropUrl]   = useState(false);
+  const [salesData,    setSalesData]   = useState({corn:{}, soy:{}});
+  const [salesDate,    setSalesDate]   = useState("");
 
   const fetchCrop = useCallback(async (manualUrl) => {
     setLd(p=>({...p,crop:true})); setSt(p=>({...p,crop:"Buscando..."}));
@@ -810,6 +960,24 @@ export default function App() {
       setSt(p=>({...p,crop:`✗ ${e.message}`}));
     } finally {
       setLd(p=>({...p,crop:false}));
+    }
+  },[]);
+
+
+  const fetchSales = useCallback(async () => {
+    setLd(p=>({...p,sales:true})); setSt(p=>({...p,sales:"Buscando..."}));
+    try {
+      const res  = await fetch("/.netlify/functions/proxy-sales");
+      const text = await res.text();
+      if (!res.ok) throw new Error(text.split("\n")[0]);
+      const data = parseSales(text);
+      setSalesData({corn:data.corn, soy:data.soy});
+      if (data.date) setSalesDate(data.date);
+      setSt(p=>({...p,sales:`✓ Atualizado · ${data.date}`}));
+    } catch(e) {
+      setSt(p=>({...p,sales:`✗ ${e.message}`}));
+    } finally {
+      setLd(p=>({...p,sales:false}));
     }
   },[]);
 
@@ -874,7 +1042,7 @@ export default function App() {
 
       {/* Tabs */}
       <div style={{display:"flex",borderBottom:`1px solid ${G.goldDark}44`,padding:"0 26px"}}>
-        {[["export","📦  INSPEÇÕES DE EXPORTAÇÃO"],["crop","🌿  PROGRESSO DAS LAVOURAS"],["share","🖼  EXPORTAR CARDS"]].map(([id,lbl])=>(
+        {[["export","📦  INSPEÇÕES · SEGUNDA"],["quinta","📊  VENDAS E EMBARQUES · QUINTA"],["crop","🌿  PROGRESSO DAS LAVOURAS"],["share","🖼  EXPORTAR CARDS"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setTab(id)} style={{
             background:"none",border:"none",cursor:"pointer",
             fontFamily:"'Cinzel',serif",fontSize:11,letterSpacing:"0.12em",
@@ -906,8 +1074,29 @@ export default function App() {
           </div>
         )}
 
+
+        {tab==="quinta" && (
+          <div>
+            <div style={{display:"flex",gap:14,alignItems:"flex-end",marginBottom:18,flexWrap:"wrap"}}>
+              <BtnFetch onClick={fetchSales} loading={loading.sales} status={status.sales} label="CARREGAR VENDAS FAS" />
+              <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.1em"}}>DATA DO RELATÓRIO</div>
+                <input value={salesDate} onChange={e=>setSalesDate(e.target.value)} placeholder="Ex: 04/09/2026"
+                  style={{background:"rgba(0,0,0,0.3)",border:`1px solid ${G.goldDark}`,borderRadius:2,
+                    padding:"7px 12px",color:G.cream,fontFamily:"monospace",fontSize:12}}/>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+              <SalesCardExport label="MILHO" icon={ICON_CORN} data={salesData.corn} salesDate={salesDate}
+                logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+              <SalesCardExport label="SOJA"  icon={ICON_SOY}  data={salesData.soy}  salesDate={salesDate}
+                logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+            </div>
+          </div>
+        )}
+
         {tab==="share" && (
-          <ExportTab exportData={exportData} cropData={cropData} reportDate={reportDate} cropDate={cropDate} />
+          <ExportTab exportData={exportData} cropData={cropData} reportDate={reportDate} cropDate={cropDate} salesData={salesData} salesDate={salesDate} />
         )}
 
         {tab==="crop" && (
