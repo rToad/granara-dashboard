@@ -4,13 +4,50 @@ import { useState, useCallback, useRef } from "react";
 const LOGO             = "/logos/shield-green.png";
 const LOGO_SHIELD_GOLD = "/logos/shield-gold.png";
 const LOGO_WORDMARK    = "/logos/wordmark-gold.png";
+
+// ── Brand Themes ──────────────────────────────────────────────────────────────
+const BRANDS = {
+  granara: {
+    id: "granara",
+    name: "GRANARA",
+    cardBg:      "#002621",
+    cardMid:     "#013A34",
+    cardBorder:  B.cardGold,
+    cardGold:    B.cardGold,
+    cardGoldDim: B.cardGoldDim,
+    headerGrad:  "linear-gradient(90deg,#001a17 0%,#013A34 100%)",
+    sectionBg:   "#013A3444",
+    logoHeader:  LOGO_SHIELD_GOLD,
+    logoFooter:  LOGO_WORDMARK,
+    footerUrl:   "app.gtrd.com.br/relatorios",
+    accentPos:   "#6fcf97",
+    accentNeg:   "#eb5757",
+  },
+  getreide: {
+    id: "getreide",
+    name: "GETREIDE COMMODITIES",
+    cardBg:      "#0d2e0d",
+    cardMid:     "#1C8152",
+    cardBorder:  "#FFD768",
+    cardGold:    "#FFD768",
+    cardGoldDim: "#BFD730",
+    headerGrad:  "linear-gradient(90deg,#0d2e0d 0%,#1C8152 100%)",
+    sectionBg:   "#1C815222",
+    logoHeader:  "/logos/gtrd-shield.png",
+    logoFooter:  "/logos/gtrd-wordmark.png",
+    footerUrl:   "app.gtrd.com.br/relatorios",
+    accentPos:   "#6fcf97",
+    accentNeg:   "#eb5757",
+  },
+};
+
 const ICON_CORN        = "/logos/icon-corn.png";
 const ICON_SOY         = "/logos/icon-soy.png";
 
 // ── Brand Colors ──────────────────────────────────────────────────────────────
 const G = {
   darkGreen: "#002621", midGreen: "#013A34", slateGreen: "#2F3F3C",
-  cream: "#EFE8D8", gold: "#AF965D", goldDark: "#65562E",
+  cream: "#EFE8D8", gold: B.cardGold, goldDark: B.cardGoldDim,
 };
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
@@ -369,6 +406,53 @@ function CropCard({label,icon,isSoy,data,onUpdate,cropDate}) {
 }
 
 
+
+// ── Brand Themes ──────────────────────────────────────────────────────────────
+const BRANDS = {
+  granara: {
+    name: "GRANARA",
+    tagline: "O AGRO MAIS INTELIGENTE E SEGURO",
+    bg:        "#002621",
+    bgMid:     "#013A34",
+    border:    B.cardGold,
+    borderDim: B.cardGoldDim,
+    accent:    B.cardGold,
+    text:      "#EFE8D8",
+    logoHeader:  "/logos/shield-gold.png",
+    logoFooter:  "/logos/wordmark-gold.png",
+    url:         {T.url},
+    headerStyle: {
+      background: "linear-gradient(90deg,#001a17 0%,#013A34 100%)",
+      borderBottom: "2px solid #AF965D",
+    },
+    commodityStyle: {
+      background: "linear-gradient(90deg,#013A34,#002621)",
+      borderBottom: "1px solid #AF965D44",
+    },
+  },
+  getreide: {
+    name: "GETREIDE",
+    tagline: "COMMODITIES",
+    bg:        "#0d2e0d",
+    bgMid:     "#1C8152",
+    border:    "#FFD768",
+    borderDim: "#BFD730",
+    accent:    "#FFD768",
+    text:      "#ffffff",
+    logoHeader:  "/logos/gtrd-wordmark.png",
+    logoFooter:  "/logos/gtrd-shield.png",
+    url:         {T.url},
+    headerStyle: {
+      background: "linear-gradient(90deg,#0d2e0d 0%,#1C8152 100%)",
+      borderBottom: "2px solid #FFD768",
+    },
+    commodityStyle: {
+      background: "linear-gradient(90deg,#1C8152,#0d2e0d)",
+      borderBottom: "1px solid #FFD76844",
+    },
+  },
+};
+
 // ── Export Card Renderers ─────────────────────────────────────────────────────
 
 function fmtE(v) {
@@ -382,46 +466,46 @@ function pctE(a,b){
 }
 
 // Shared card shell — dark green, logo header + footer
-function CardShellExport({ children, logo, logoFooter }) {
+function CardShellExport({ children, logo, logoFooter, brand }) {
+  const B = brand || BRANDS.granara;
   return (
     <div style={{
-      background:"#002621",
+      background: B.cardBg,
       width:580,
       fontFamily:"'Helvetica Neue',Arial,sans-serif",
       borderRadius:6,
       overflow:"hidden",
       boxShadow:"0 4px 24px rgba(0,0,0,0.5)",
     }}>
-      {/* logo header */}
       <div style={{
-        background:"linear-gradient(90deg,#001a17 0%,#013A34 100%)",
-        borderBottom:"2px solid #AF965D",
+        background: B.headerGrad,
+        borderBottom:`2px solid ${B.cardBorder}`,
         padding:"12px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
-        <img src={logo} style={{height:56, objectFit:"contain", filter:"drop-shadow(0 2px 6px rgba(0,0,0,0.5))"}} alt="Granara" />
-        <div style={{fontSize:8, color:"#AF965D88", letterSpacing:"0.2em"}}>FONTE: USDA</div>
+        <img src={logo || B.logoHeader} style={{height:56, objectFit:"contain", filter:"drop-shadow(0 2px 6px rgba(0,0,0,0.5))"}} alt={B.name} />
+        <div style={{fontSize:8, color:`${B.cardGold}88`, letterSpacing:"0.2em"}}>FONTE: USDA</div>
       </div>
 
       {children}
 
-      {/* logo footer */}
       <div style={{
-        background:"#001a17",
-        borderTop:"1px solid #65562E44",
+        background: B.cardBg,
+        borderTop:`1px solid ${B.cardGoldDim}44`,
         padding:"8px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
-        <span style={{fontSize:9, color:"#65562E", letterSpacing:"0.12em", fontStyle:"italic"}}>
-          app.gtrd.com.br/relatorios
+        <span style={{fontSize:9, color: B.cardGoldDim, letterSpacing:"0.12em", fontStyle:"italic"}}>
+          {B.footerUrl}
         </span>
-        <img src={logoFooter||LOGO_WORDMARK} style={{height:28, objectFit:"contain"}} alt="Granara" />
+        <img src={logoFooter || B.logoFooter} style={{height:28, objectFit:"contain"}} alt={B.name} />
       </div>
     </div>
   );
 }
 
-function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
+function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, brand }) {
+  const B = brand || BRANDS.granara;
   const acum  = parseFloat(data.acumulado2526||0);
   const exp   = parseFloat(data.expectativa||0);
   const sem   = parseInt(data.semanas)||0;
@@ -438,7 +522,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
       padding:"6px 0", borderBottom:"1px solid #ffffff0a",
     }}>
       <span style={{
-        fontSize:10, color: accent ? "#AF965D" : "#b8c8b8",
+        fontSize:10, color: accent ? B.cardGold : "#b8c8b8",
         letterSpacing:"0.07em", textTransform:"uppercase",
         fontWeight: bold ? "600" : "normal",
       }}>{l}</span>
@@ -452,13 +536,12 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
   );
 
   return (
-    <CardShellExport logo={logo} logoFooter={logoFooter}>
+    <CardShellExport logo={logo} logoFooter={logoFooter} theme={theme}>
       {/* commodity header */}
       <div style={{
-        background:"linear-gradient(90deg,#013A34,#002621)",
+        ...T.commodityStyle,
         padding:"14px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
-        borderBottom:"1px solid #AF965D44",
       }}>
         <div style={{display:"flex", alignItems:"center", gap:12}}>
           <img src={icon} style={{
@@ -467,12 +550,12 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
           }} alt={label} />
           <div>
             <div style={{fontSize:22, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
-            <div style={{fontSize:9, color:"#AF965D", letterSpacing:"0.15em"}}>EM TONELADAS MÉTRICAS</div>
+            <div style={{fontSize:9, color:B.cardGold, letterSpacing:"0.15em"}}>EM TONELADAS MÉTRICAS</div>
           </div>
         </div>
         <div style={{textAlign:"right"}}>
-          <div style={{fontSize:9, color:"#65562E", letterSpacing:"0.1em"}}>RELATÓRIO SEMANAL</div>
-          <div style={{fontSize:11, color:"#AF965D", fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {reportDate||"—"}</div>
+          <div style={{fontSize:9, color:B.cardGoldDim, letterSpacing:"0.1em"}}>RELATÓRIO SEMANAL</div>
+          <div style={{fontSize:11, color:B.cardGold, fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {reportDate||"—"}</div>
         </div>
       </div>
 
@@ -502,11 +585,11 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
 
         {/* embarque block */}
         <div style={{
-          background:"#013A3444", border:"1px solid #AF965D22",
+          background:B.sectionBg, border:"1px solid #AF965D22",
           borderRadius:4, padding:"10px 14px", marginTop:10,
         }}>
-          <div style={{fontSize:9, color:"#AF965D", letterSpacing:"0.15em",
-            marginBottom:8, borderBottom:"1px solid #AF965D33", paddingBottom:4}}>
+          <div style={{fontSize:9, color:B.accent, letterSpacing:"0.15em",
+            marginBottom:8, borderBottom:`1px solid ${B.accent}33`, paddingBottom:4}}>
             EMBARQUE
           </div>
           {[
@@ -534,18 +617,18 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
   );
 }
 
-function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy }) {
+function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, brand }) {
+  const B = brand || BRANDS.granara;
   const stageLabels = isSoy ? SOY_STAGES_LABELS : CORN_STAGES_LABELS;
   const activeStages = Object.entries(stageLabels).filter(([k]) => data[k]?.atual || data[k]?.anoPassado);
 
   return (
-    <CardShellExport logo={logo} logoFooter={logoFooter}>
+    <CardShellExport logo={logo} logoFooter={logoFooter} theme={theme}>
       {/* commodity header */}
       <div style={{
-        background:"linear-gradient(90deg,#013A34,#002621)",
+        ...T.commodityStyle,
         padding:"14px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
-        borderBottom:"1px solid #AF965D44",
       }}>
         <div style={{display:"flex", alignItems:"center", gap:12}}>
           <img src={icon} style={{
@@ -554,29 +637,29 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy }
           }} alt={label} />
           <div>
             <div style={{fontSize:22, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
-            <div style={{fontSize:9, color:"#AF965D", letterSpacing:"0.15em"}}>PROGRESSO DAS LAVOURAS EUA</div>
+            <div style={{fontSize:9, color:B.cardGold, letterSpacing:"0.15em"}}>PROGRESSO DAS LAVOURAS EUA</div>
           </div>
         </div>
         <div style={{textAlign:"right"}}>
-          <div style={{fontSize:9, color:"#65562E", letterSpacing:"0.1em"}}>USDA CROP PROGRESS</div>
-          <div style={{fontSize:11, color:"#AF965D", fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {cropDate||"—"}</div>
+          <div style={{fontSize:9, color:B.cardGoldDim, letterSpacing:"0.1em"}}>USDA CROP PROGRESS</div>
+          <div style={{fontSize:11, color:B.cardGold, fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {cropDate||"—"}</div>
         </div>
       </div>
 
       {/* stages */}
       <div style={{padding:"14px 20px 10px"}}>
         {activeStages.length === 0 && (
-          <div style={{color:"#65562E", fontSize:12, textAlign:"center", padding:"24px 0"}}>
+          <div style={{color:B.cardGoldDim, fontSize:12, textAlign:"center", padding:"24px 0"}}>
             Sem dados carregados
           </div>
         )}
         {activeStages.map(([k, lbl]) => (
           <div key={k} style={{marginBottom:10}}>
             <div style={{
-              background:"#013A34", borderLeft:"3px solid #AF965D",
+              background:T.bgMid, borderLeft:`3px solid ${B.accent}`,
               padding:"4px 10px", marginBottom:6,
             }}>
-              <span style={{fontSize:10, color:"#AF965D", letterSpacing:"0.14em", fontWeight:"bold"}}>{lbl}</span>
+              <span style={{fontSize:10, color:B.accent, letterSpacing:"0.14em", fontWeight:"bold"}}>{lbl}</span>
             </div>
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"2px 0", padding:"0 4px"}}>
               {[["Atual", data[k]?.atual], ["Ano Passado", data[k]?.anoPassado],
@@ -598,10 +681,10 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy }
         {/* conditions */}
         {CONDITIONS.some(c => data[c.key]?.atual) && (
           <div style={{
-            background:"#013A3444", border:"1px solid #AF965D22",
+            background:B.sectionBg, border:"1px solid #AF965D22",
             borderRadius:4, padding:"10px 14px", marginTop:6,
           }}>
-            <div style={{fontSize:9, color:"#AF965D", letterSpacing:"0.15em",
+            <div style={{fontSize:9, color:B.cardGold, letterSpacing:"0.15em",
               marginBottom:8, borderBottom:"1px solid #AF965D33", paddingBottom:4}}>
               CONDIÇÕES
             </div>
@@ -617,7 +700,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy }
                   <span style={{fontSize:13, color:"#aaaaaa"}}>
                     {data[c.key]?.anterior ? data[c.key].anterior+"%" : "—"}
                   </span>
-                  <span style={{color:"#65562E"}}>→</span>
+                  <span style={{color:B.cardGoldDim}}>→</span>
                   <span style={{
                     fontSize:18, fontWeight:"bold",
                     color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#ffffff",
@@ -664,7 +747,10 @@ async function downloadCardPNG(elementId, filename) {
   link.click();
 }
 
-function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, salesDate }) {
+function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, salesDate, brand }) {
+  const T = BRANDS[brand] || BRANDS.granara;
+  const cardLogo = B.logoHeader;
+  const cardLogoFooter = B.logoFooter;
   const [dl, setDl] = useState({});
 
   async function handleDL(id, filename) {
@@ -684,14 +770,14 @@ function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, sale
         display:"flex", alignItems:"center", justifyContent:"space-between",
         marginBottom:12,
       }}>
-        <div style={{fontSize:10, color:"#AF965D", fontFamily:"'Cinzel',serif", letterSpacing:"0.18em"}}>{title}</div>
+        <div style={{fontSize:10, color:B.cardGold, fontFamily:"'Cinzel',serif", letterSpacing:"0.18em"}}>{title}</div>
         <button
           onClick={() => handleDL(id, filename)}
           disabled={dl[id]}
           style={{
-            background: dl[id] ? "transparent" : "#AF965D",
+            background: dl[id] ? "transparent" : B.cardGold,
             border:"1px solid #AF965D", borderRadius:2,
-            color: dl[id] ? "#AF965D" : "#002621",
+            color: dl[id] ? B.cardGold : "#002621",
             fontFamily:"'Cinzel',serif", fontSize:9, letterSpacing:"0.12em",
             padding:"6px 14px", cursor: dl[id] ? "wait" : "pointer", fontWeight:"bold",
           }}>
@@ -715,42 +801,42 @@ function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, sale
       </div>
 
       <Section title="INSPEÇÕES · MILHO" id="ec-corn" filename={`granara-milho-${date}.png`}>
-        <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+        <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
       </Section>
 
       <Section title="INSPEÇÕES · SOJA" id="ec-soy" filename={`granara-soja-${date}.png`}>
-        <ExportCardExport label="SOJA" icon={ICON_SOY} data={exportData.soy} reportDate={reportDate} logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+        <ExportCardExport label="SOJA" icon={ICON_SOY} data={exportData.soy} reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
       </Section>
 
       <Section title="INSPEÇÕES · MILHO + SOJA" id="ec-both" filename={`granara-exportacoes-${date}.png`}>
         <div style={{display:"flex", gap:16}}>
-          <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
-          <ExportCardExport label="SOJA"  icon={ICON_SOY}  data={exportData.soy}  reportDate={reportDate} logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+          <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+          <ExportCardExport label="SOJA"  icon={ICON_SOY}  data={exportData.soy}  reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
         </div>
       </Section>
 
 
       <Section title="VENDAS · MILHO" id="sc-corn" filename={`granara-milho-vendas-${salesDate||"sales"}.png`}>
         <SalesCardExport label="MILHO" icon={ICON_CORN} data={salesData.corn} salesDate={salesDate}
-          logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+          logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
       </Section>
 
       <Section title="VENDAS · SOJA" id="sc-soy" filename={`granara-soja-vendas-${salesDate||"sales"}.png`}>
         <SalesCardExport label="SOJA" icon={ICON_SOY} data={salesData.soy} salesDate={salesDate}
-          logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+          logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
       </Section>
 
       <Section title="VENDAS · MILHO + SOJA" id="sc-both" filename={`granara-vendas-${salesDate||"sales"}.png`}>
         <div style={{display:"flex", gap:16}}>
           <SalesCardExport label="MILHO" icon={ICON_CORN} data={salesData.corn} salesDate={salesDate}
-            logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+            logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
           <SalesCardExport label="SOJA"  icon={ICON_SOY}  data={salesData.soy}  salesDate={salesDate}
-            logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+            logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
         </div>
       </Section>
 
       <Section title="LAVOURAS · MILHO" id="cc-corn" filename={`granara-milho-lavoura-${cdate}.png`}>
-        <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} isSoy={false} />
+        <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} isSoy={false} />
       </Section>
 
       <Section title="LAVOURAS · SOJA" id="cc-soy" filename={`granara-soja-lavoura-${cdate}.png`}>
@@ -759,8 +845,8 @@ function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, sale
 
       <Section title="LAVOURAS · MILHO + SOJA" id="cc-both" filename={`granara-lavouras-${cdate}.png`}>
         <div style={{display:"flex", gap:16}}>
-          <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} isSoy={false} />
-          <CropCardExport label="SOJA"  icon={ICON_SOY}  data={cropData.soy}  cropDate={cropDate} logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} isSoy={true}  />
+          <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} isSoy={false} />
+          <CropCardExport label="SOJA"  icon={ICON_SOY}  data={cropData.soy}  cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} isSoy={true}  />
         </div>
       </Section>
     </div>
@@ -815,7 +901,8 @@ function parseSales(xmlText) {
 }
 
 // ── Sales Export Card ─────────────────────────────────────────────────────────
-function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
+function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand }) {
+  const B = brand || BRANDS.granara;
   const fmtS = v => {
     const n = parseFloat(String(v||"").replace(/,/g,"."));
     if (isNaN(n) || v === "") return "—";
@@ -832,39 +919,38 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
   const dVendas = pS(data.vendasAcum2526, data.vendasAcum2425);
 
   return (
-    <CardShellExport logo={logo} logoFooter={logoFooter}>
+    <CardShellExport logo={logo} logoFooter={logoFooter} theme={theme}>
       {/* commodity header */}
       <div style={{
-        background:"linear-gradient(90deg,#013A34,#002621)",
+        ...T.commodityStyle,
         padding:"14px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
-        borderBottom:"1px solid #AF965D44",
       }}>
         <div style={{display:"flex", alignItems:"center", gap:12}}>
           <img src={icon} style={{width:36,height:36,filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)",opacity:.9}} alt={label}/>
           <div>
             <div style={{fontSize:22,fontWeight:"bold",letterSpacing:"0.2em",color:"#EFE8D8"}}>{label}</div>
-            <div style={{fontSize:9,color:"#AF965D",letterSpacing:"0.15em"}}>EXPORTAÇÕES E VENDAS EUA · EM TONELADAS MÉTRICAS</div>
+            <div style={{fontSize:9,color:B.cardGold,letterSpacing:"0.15em"}}>EXPORTAÇÕES E VENDAS EUA · EM TONELADAS MÉTRICAS</div>
           </div>
         </div>
         <div style={{textAlign:"right"}}>
-          <div style={{fontSize:9,color:"#65562E",letterSpacing:"0.1em"}}>RELATÓRIO SEMANAL</div>
-          <div style={{fontSize:11,color:"#AF965D",fontWeight:"bold",letterSpacing:"0.1em"}}>ATÉ {salesDate||"—"}</div>
+          <div style={{fontSize:9,color:B.cardGoldDim,letterSpacing:"0.1em"}}>RELATÓRIO SEMANAL</div>
+          <div style={{fontSize:11,color:B.cardGold,fontWeight:"bold",letterSpacing:"0.1em"}}>ATÉ {salesDate||"—"}</div>
         </div>
       </div>
 
       <div style={{padding:"14px 20px 10px"}}>
         {/* VENDAS block */}
-        <div style={{background:"#013A3444",border:"1px solid #AF965D22",borderRadius:4,padding:"10px 14px",marginBottom:10}}>
-          <div style={{fontSize:9,color:"#AF965D",letterSpacing:"0.15em",marginBottom:8,
-            borderBottom:"1px solid #AF965D33",paddingBottom:4,fontWeight:"bold"}}>VENDAS</div>
+        <div style={{background:B.sectionBg,border:"1px solid #AF965D22",borderRadius:4,padding:"10px 14px",marginBottom:10}}>
+          <div style={{fontSize:9,color:B.accent,letterSpacing:"0.15em",marginBottom:8,
+            borderBottom:`1px solid ${B.accent}33`,paddingBottom:4,fontWeight:"bold"}}>VENDAS</div>
           {[
             ["Vendas da Semana 2025/26",   data.vendasSemana,   false],
             ["Vendas Acumuladas 2025/26",  data.vendasAcum2526, true],
             ["Vendas Acumuladas 2024/25",  data.vendasAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:10,color:b?"#AF965D":"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:10,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
               <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
             </div>
           ))}
@@ -876,12 +962,12 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
         </div>
 
         {/* EMBARQUES block */}
-        <div style={{background:"#013A3444",border:"1px solid #AF965D22",borderRadius:4,padding:"10px 14px"}}>
+        <div style={{background:B.sectionBg,border:"1px solid #AF965D22",borderRadius:4,padding:"10px 14px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
             marginBottom:8,borderBottom:"1px solid #AF965D33",paddingBottom:4}}>
-            <div style={{fontSize:9,color:"#AF965D",letterSpacing:"0.15em",fontWeight:"bold"}}>EMBARQUES</div>
+            <div style={{fontSize:9,color:B.cardGold,letterSpacing:"0.15em",fontWeight:"bold"}}>EMBARQUES</div>
             {data.expectativa && (
-              <div style={{fontSize:10,color:"#AF965D",fontFamily:"monospace",fontWeight:"bold"}}>
+              <div style={{fontSize:10,color:B.cardGold,fontFamily:"monospace",fontWeight:"bold"}}>
                 EXPECTATIVA: {(parseFloat(data.expectativa)*1000).toLocaleString("pt-BR")}
               </div>
             )}
@@ -893,7 +979,7 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
             ["Embarques Acumulados 2024/25",data.embarqueAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:10,color:b?"#AF965D":"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:10,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
               <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
             </div>
           ))}
@@ -906,6 +992,8 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab]       = useState("export");
+  const [brandId, setBrandId] = useState("granara");
+  const brand = BRANDS[brandId];
   const [reportDate, setRD] = useState("");
   const [cropDate,   setCD] = useState("");
   const [loading,  setLd]   = useState({ams:false, crop:false, sales:false});
@@ -944,6 +1032,7 @@ export default function App() {
   const [cropManualUrl, setCropManualUrl] = useState("");
   const [showCropUrl,   setShowCropUrl]   = useState(false);
   const [salesData,    setSalesData]   = useState({corn:{}, soy:{}});
+  const [brand, setBrand] = useState("granara"); // "granara" | "getreide"
   const [salesDate,    setSalesDate]   = useState("");
 
   const fetchCrop = useCallback(async (manualUrl) => {
@@ -1034,7 +1123,23 @@ export default function App() {
             <div style={{fontSize:9,color:G.goldDark,letterSpacing:"0.08em"}}>FONTE: USDA · {today}</div>
           </div>
         </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          {/* Brand Toggle */}
+          <div style={{
+            display:"flex", background:"rgba(0,0,0,0.3)",
+            border:`1px solid ${G.goldDark}`, borderRadius:3, overflow:"hidden", marginRight:4,
+          }}>
+            {["granara","getreide"].map(b => (
+              <button key={b} onClick={()=>setBrand(b)} style={{
+                background: brand===b ? G.gold : "transparent",
+                border:"none", cursor:"pointer",
+                color: brand===b ? G.darkGreen : G.cream+"88",
+                fontFamily:"'Cinzel',serif", fontSize:9, letterSpacing:"0.1em",
+                padding:"5px 12px", fontWeight: brand===b ? "bold" : "normal",
+                transition:"all 0.2s",
+              }}>{b.toUpperCase()}</button>
+            ))}
+          </div>
           <a href="https://www.ams.usda.gov/mnreports/wa_gr101.txt" target="_blank" rel="noreferrer"
             style={{fontSize:9,color:G.gold,textDecoration:"none",border:`1px solid ${G.goldDark}`,
               borderRadius:2,padding:"5px 10px",fontFamily:"'Cinzel',serif",letterSpacing:"0.1em"}}>
@@ -1096,15 +1201,15 @@ export default function App() {
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
               <SalesCardExport label="MILHO" icon={ICON_CORN} data={salesData.corn} salesDate={salesDate}
-                logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+                logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
               <SalesCardExport label="SOJA"  icon={ICON_SOY}  data={salesData.soy}  salesDate={salesDate}
-                logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} />
+                logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
             </div>
           </div>
         )}
 
         {tab==="share" && (
-          <ExportTab exportData={exportData} cropData={cropData} reportDate={reportDate} cropDate={cropDate} salesData={salesData} salesDate={salesDate} />
+          <ExportTab exportData={exportData} cropData={cropData} reportDate={reportDate} cropDate={cropDate} salesData={salesData} salesDate={salesDate} brand={brand} />
         )}
 
         {tab==="crop" && (
