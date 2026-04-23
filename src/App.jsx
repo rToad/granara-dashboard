@@ -17,8 +17,8 @@ const BRANDS = {
     cardGoldDim: "#65562E",
     headerGrad:  "linear-gradient(90deg,#001a17 0%,#013A34 100%)",
     sectionBg:   "#013A3444",
-    logoHeader:  LOGO_SHIELD_GOLD,
-    logoFooter:  LOGO_WORDMARK,
+    logoHeader:  LOGO_WORDMARK,
+    logoFooter:  LOGO_SHIELD_GOLD,
     footerUrl:   "app.gtrd.com.br/relatorios",
     accentPos:   "#6fcf97",
     accentNeg:   "#eb5757",
@@ -36,8 +36,8 @@ const BRANDS = {
     cardGoldDim: "#BFD730",
     headerGrad:  "linear-gradient(90deg,#0d2e0d 0%,#1C8152 100%)",
     sectionBg:   "#1C815222",
-    logoHeader:  "/logos/GETREIDE_COMMODITIES-01.png",
-    logoFooter:  "/logos/gtrd-wordmark.png",
+    logoHeader:  "/logos/gtrd-wordmark.png",
+    logoFooter:  "/logos/GETREIDE_COMMODITIES-01.png",
     footerUrl:   "app.gtrd.com.br/relatorios",
     accentPos:   "#6fcf97",
     accentNeg:   "#eb5757",
@@ -470,7 +470,7 @@ function CardShellExport({ children, logo, logoFooter, brand }) {
         padding:"12px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
-        <img src={logo || B.logoHeader} style={{height:56, objectFit:"contain", filter:"drop-shadow(0 2px 6px rgba(0,0,0,0.5))"}} alt={B.name} />
+        <img src={logo || B.logoHeader} style={{height:44, objectFit:"contain", filter:"drop-shadow(0 2px 6px rgba(0,0,0,0.5))"}} alt={B.name} />
         <div style={{fontSize:8, color:`${B.cardGold}88`, letterSpacing:"0.2em"}}>FONTE: USDA</div>
       </div>
 
@@ -485,7 +485,7 @@ function CardShellExport({ children, logo, logoFooter, brand }) {
         <span style={{fontSize:9, color: B.cardGoldDim, letterSpacing:"0.12em", fontStyle:"italic"}}>
           {B.footerUrl}
         </span>
-        <img src={logoFooter || B.logoFooter} style={{height:28, objectFit:"contain"}} alt={B.name} />
+        <img src={logoFooter || B.logoFooter} style={{height:36, objectFit:"contain"}} alt={B.name} />
       </div>
     </div>
   );
@@ -509,12 +509,12 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
       padding:"6px 0", borderBottom:"1px solid #ffffff0a",
     }}>
       <span style={{
-        fontSize:12, color: accent ? B.cardGold : "#b8c8b8",
+        fontSize:14, color: accent ? B.cardGold : "#b8c8b8",
         letterSpacing:"0.07em", textTransform:"uppercase",
         fontWeight: bold ? "600" : "normal",
       }}>{l}</span>
       <span style={{
-        fontSize: bold ? 22 : 20,
+        fontSize: bold ? 26 : 22,
         fontFamily:"'Courier New',monospace",
         fontWeight: bold ? "bold" : "normal",
         color: "#ffffff",
@@ -537,12 +537,12 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
           }} alt={label} />
           <div>
             <div style={{fontSize:24, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
-            <div style={{fontSize:9, color:B.cardGold, letterSpacing:"0.15em"}}>EM TONELADAS MÉTRICAS</div>
+            <div style={{fontSize:11, color:B.cardGold, letterSpacing:"0.15em"}}>EM TONELADAS MÉTRICAS</div>
           </div>
         </div>
         <div style={{textAlign:"right"}}>
           <div style={{fontSize:9, color:B.cardGoldDim, letterSpacing:"0.1em"}}>RELATÓRIO SEMANAL</div>
-          <div style={{fontSize:11, color:B.cardGold, fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {reportDate||"—"}</div>
+          <div style={{fontSize:13, color:B.cardGold, fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {reportDate||"—"}</div>
         </div>
       </div>
 
@@ -551,7 +551,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
         <Row label="Semana Atual"       value={fmtE(data.semanaAtual)}    bold />
         <Row label="Semana Anterior"    value={fmtE(data.semanaAnterior)} />
         {dSem !== null && (
-          <div style={{textAlign:"right", fontSize:13, fontFamily:"monospace",
+          <div style={{textAlign:"right", fontSize:15, fontFamily:"monospace",
             color:arrowCol(dSem), marginBottom:2}}>
             {isPos(dSem)?"▲":"▼"} {Math.abs(dSem)}% vs sem. anterior
           </div>
@@ -590,9 +590,9 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
               display:"flex", justifyContent:"space-between",
               padding:"4px 0", borderBottom:"1px solid #ffffff08",
             }}>
-              <span style={{fontSize:12, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
+              <span style={{fontSize:14, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
               <span style={{
-                fontSize: b ? 15 : 13,
+                fontSize: b ? 17 : 15,
                 fontFamily:"monospace", fontWeight: b ? "bold" : "normal",
                 color: "#ffffff",
               }}>{v}</span>
@@ -624,12 +624,12 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
           }} alt={label} />
           <div>
             <div style={{fontSize:24, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
-            <div style={{fontSize:9, color:B.cardGold, letterSpacing:"0.15em"}}>PROGRESSO DAS LAVOURAS EUA</div>
+            <div style={{fontSize:11, color:B.cardGold, letterSpacing:"0.15em"}}>PROGRESSO DAS LAVOURAS EUA</div>
           </div>
         </div>
         <div style={{textAlign:"right"}}>
           <div style={{fontSize:9, color:B.cardGoldDim, letterSpacing:"0.1em"}}>USDA CROP PROGRESS</div>
-          <div style={{fontSize:11, color:B.cardGold, fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {cropDate||"—"}</div>
+          <div style={{fontSize:13, color:B.cardGold, fontWeight:"bold", letterSpacing:"0.1em"}}>ATÉ {cropDate||"—"}</div>
         </div>
       </div>
 
@@ -646,15 +646,15 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
               background:B.cardMid, borderLeft:`3px solid ${B.accent}`,
               padding:"4px 10px", marginBottom:6,
             }}>
-              <span style={{fontSize:10, color:B.accent, letterSpacing:"0.14em", fontWeight:"bold"}}>{lbl}</span>
+              <span style={{fontSize:14, color:B.accent, letterSpacing:"0.14em", fontWeight:"bold"}}>{lbl}</span>
             </div>
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"2px 0", padding:"0 4px"}}>
               {[["Atual", data[k]?.atual], ["Ano Passado", data[k]?.anoPassado],
                 ["Sem. Passada", data[k]?.semPassada], ["Média 5 Anos", data[k]?.media5]].map(([l,v])=>(
                 <div key={l} style={{display:"flex", justifyContent:"space-between", padding:"3px 8px"}}>
-                  <span style={{fontSize:10, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
+                  <span style={{fontSize:14, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
                   <span style={{
-                    fontSize: l==="Atual" ? 20 : 16,
+                    fontSize: l==="Atual" ? 24 : 20,
                     fontFamily:"monospace",
                     fontWeight: l==="Atual" ? "bold" : "normal",
                     color: l==="Atual" ? "#EFE8D8" : "#b8c8b8",
@@ -680,16 +680,16 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
                 display:"flex", justifyContent:"space-between", alignItems:"center",
                 padding:"5px 0", borderBottom:"1px solid #ffffff08",
               }}>
-                <span style={{fontSize:10, color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#b8c8b8"}}>
+                <span style={{fontSize:14, color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#b8c8b8"}}>
                   {c.label}
                 </span>
                 <div style={{display:"flex", gap:8, alignItems:"center", fontFamily:"monospace"}}>
-                  <span style={{fontSize:15, color:"#aaaaaa"}}>
+                  <span style={{fontSize:19, color:"#aaaaaa"}}>
                     {data[c.key]?.anterior ? data[c.key].anterior+"%" : "—"}
                   </span>
                   <span style={{color:B.cardGoldDim}}>→</span>
                   <span style={{
-                    fontSize:20, fontWeight:"bold",
+                    fontSize:24, fontWeight:"bold",
                     color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#ffffff",
                   }}>
                     {data[c.key]?.atual ? data[c.key].atual+"%" : "—"}
@@ -917,12 +917,12 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
           <img src={icon} style={{width:36,height:36,filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)",opacity:.9}} alt={label}/>
           <div>
             <div style={{fontSize:22,fontWeight:"bold",letterSpacing:"0.2em",color:"#EFE8D8"}}>{label}</div>
-            <div style={{fontSize:9,color:B.cardGold,letterSpacing:"0.15em"}}>EXPORTAÇÕES E VENDAS EUA · EM TONELADAS MÉTRICAS</div>
+            <div style={{fontSize:11,color:B.cardGold,letterSpacing:"0.15em"}}>EXPORTAÇÕES E VENDAS EUA · EM TONELADAS MÉTRICAS</div>
           </div>
         </div>
         <div style={{textAlign:"right"}}>
           <div style={{fontSize:9,color:B.cardGoldDim,letterSpacing:"0.1em"}}>RELATÓRIO SEMANAL</div>
-          <div style={{fontSize:11,color:B.cardGold,fontWeight:"bold",letterSpacing:"0.1em"}}>ATÉ {salesDate||"—"}</div>
+          <div style={{fontSize:13,color:B.cardGold,fontWeight:"bold",letterSpacing:"0.1em"}}>ATÉ {salesDate||"—"}</div>
         </div>
       </div>
 
@@ -937,12 +937,12 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
             ["Vendas Acumuladas 2024/25",  data.vendasAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:12,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
-              <span style={{fontSize:b?16:13,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
+              <span style={{fontSize:14,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:b?18:15,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
             </div>
           ))}
           {dVendas!==null&&(
-            <div style={{textAlign:"right",fontSize:13,fontFamily:"monospace",color:arrowCol(dVendas),fontWeight:"bold",marginTop:2}}>
+            <div style={{textAlign:"right",fontSize:15,fontFamily:"monospace",color:arrowCol(dVendas),fontWeight:"bold",marginTop:2}}>
               {isPos(dVendas)?"▲":"▼"} {Math.abs(dVendas)}% acumulado
             </div>
           )}
@@ -966,8 +966,8 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
             ["Embarques Acumulados 2024/25",data.embarqueAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:12,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
-              <span style={{fontSize:b?16:13,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
+              <span style={{fontSize:14,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:b?18:15,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
             </div>
           ))}
         </div>
