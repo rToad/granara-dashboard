@@ -527,7 +527,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
         fontWeight: bold ? "600" : "normal",
       }}>{l}</span>
       <span style={{
-        fontSize: bold ? 28 : 18,
+        fontSize: bold ? 30 : 20,
         fontFamily:"'Courier New',monospace",
         fontWeight: bold ? "bold" : "normal",
         color: "#ffffff",
@@ -1130,12 +1130,12 @@ export default function App() {
             border:`1px solid ${G.goldDark}`, borderRadius:3, overflow:"hidden", marginRight:4,
           }}>
             {["granara","getreide"].map(b => (
-              <button key={b} onClick={()=>setBrand(b)} style={{
-                background: brand===b ? G.gold : "transparent",
+              <button key={b} onClick={()=>setBrandId(b)} style={{
+                background: brandId===b ? G.gold : "transparent",
                 border:"none", cursor:"pointer",
-                color: brand===b ? G.darkGreen : G.cream+"88",
+                color: brandId===b ? G.darkGreen : G.cream+"88",
                 fontFamily:"'Cinzel',serif", fontSize:9, letterSpacing:"0.1em",
-                padding:"5px 12px", fontWeight: brand===b ? "bold" : "normal",
+                padding:"5px 12px", fontWeight: brandId===b ? "bold" : "normal",
                 transition:"all 0.2s",
               }}>{b.toUpperCase()}</button>
             ))}
