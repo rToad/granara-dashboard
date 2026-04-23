@@ -36,7 +36,7 @@ const BRANDS = {
     cardGoldDim: "#BFD730",
     headerGrad:  "linear-gradient(90deg,#0d2e0d 0%,#1C8152 100%)",
     sectionBg:   "#1C815222",
-    logoHeader:  "/logos/gtrd-shield.png",
+    logoHeader:  "/logos/GETREIDE_COMMODITIES-01.png",
     logoFooter:  "/logos/gtrd-wordmark.png",
     footerUrl:   "app.gtrd.com.br/relatorios",
     accentPos:   "#6fcf97",
@@ -58,44 +58,71 @@ const G = {
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
 function parseAMS(text) {
-  // Find the main summary table and extract CORN and SOYBEANS rows
   const lines = text.split("\n").map(l => l.replace(/\r/g, ""));
   let result = { corn: {}, soy: {}, reportDate: "", weekEnding: "" };
 
-  // Extract week ending date from header
-  const weekMatch = text.match(/REPORTED IN WEEK ENDING\s+(\w+\s+\d+,?\s*\d+)/i);
-  if (weekMatch) result.weekEnding = weekMatch[1].trim();
+  // Extract week ending date — try multiple patterns
+  const weekPatterns = [
+    /REPORTED IN WEEK ENDING[:\s]+(\w+\.?\s+\d+,?\s*\d{4})/i,
+    /WEEK\s+ENDING[:\s]+(\w+\.?\s+\d+,?\s*\d{4})/i,
+    /ENDING\s+(\w+\.?\s+\d+,?\s*\d{4})/i,
+  ];
+  for (const re of weekPatterns) {
+    const m = text.match(re);
+    if (m) { result.weekEnding = m[1].trim(); break; }
+  }
 
-  // Find the date line for report date
-  const dateMatch = text.match(/Washington.*?\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\w+\s+\d+,\s*\d+)/i);
+  // Report date
+  const dateMatch = text.match(/Washington[^,\n]*,?\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[,\s]+(\w+\.?\s+\d+,\s*\d{4})/i);
   if (dateMatch) result.reportDate = dateMatch[2];
 
-  // Parse the main grain table
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    // CORN row: CORN  1,789,524   1,702,651   1,718,304   46,372,846   34,071,068
-    const cornMatch = line.match(/^CORN\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/i) || line.match(/CORN\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/);
-    if (cornMatch) {
-      result.corn = {
-        semanaAtual:   cornMatch[1].replace(/,/g, ""),
-        semanaAnterior:cornMatch[2].replace(/,/g, ""),
-        anoAnterior:   cornMatch[3].replace(/,/g, ""),
-        acumulado2526: cornMatch[4].replace(/,/g, ""),
-        acumulado2425: cornMatch[5].replace(/,/g, ""),
-      };
+  // Helper: extract all numbers from a string
+  const nums = s => (s.match(/[\d,]+/g) || []).map(n => n.replace(/,/g, "")).filter(n => n.length >= 3);
+
+  // Strategy 1: lines where crop name and numbers are on same line
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!result.corn.semanaAtual && /^CORN\b/i.test(trimmed)) {
+      const n = nums(trimmed.replace(/^CORN[^0-9]*/i, ""));
+      if (n.length >= 4) {
+        result.corn = { semanaAtual:n[0], semanaAnterior:n[1], anoAnterior:n[2], acumulado2526:n[3], acumulado2425:n[4]||"" };
+      }
     }
-    // SOYBEANS row
-    const soyMatch = line.match(/^SOYBEANS\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/i) || line.match(/SOYBEANS\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/);
-    if (soyMatch) {
-      result.soy = {
-        semanaAtual:   soyMatch[1].replace(/,/g, ""),
-        semanaAnterior:soyMatch[2].replace(/,/g, ""),
-        anoAnterior:   soyMatch[3].replace(/,/g, ""),
-        acumulado2526: soyMatch[4].replace(/,/g, ""),
-        acumulado2425: soyMatch[5].replace(/,/g, ""),
-      };
+
+    if (!result.soy.semanaAtual && /^SOYBEANS?\b/i.test(trimmed)) {
+      const n = nums(trimmed.replace(/^SOYBEANS?[^0-9]*/i, ""));
+      if (n.length >= 4) {
+        result.soy = { semanaAtual:n[0], semanaAnterior:n[1], anoAnterior:n[2], acumulado2526:n[3], acumulado2425:n[4]||"" };
+      }
     }
   }
+
+  // Strategy 2 fallback — crop name on one line, numbers on next
+  if (!result.corn.semanaAtual || !result.soy.semanaAtual) {
+    let lastLabel = "";
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^CORN\b/i.test(trimmed) && !/\d/.test(trimmed)) { lastLabel = "corn"; continue; }
+      if (/^SOYBEANS?\b/i.test(trimmed) && !/\d/.test(trimmed)) { lastLabel = "soy"; continue; }
+      const n = nums(trimmed);
+      if (n.length >= 4) {
+        if (lastLabel === "corn" && !result.corn.semanaAtual) {
+          result.corn = { semanaAtual:n[0], semanaAnterior:n[1], anoAnterior:n[2], acumulado2526:n[3], acumulado2425:n[4]||"" };
+          lastLabel = "";
+        } else if (lastLabel === "soy" && !result.soy.semanaAtual) {
+          result.soy = { semanaAtual:n[0], semanaAnterior:n[1], anoAnterior:n[2], acumulado2526:n[3], acumulado2425:n[4]||"" };
+          lastLabel = "";
+        }
+      }
+    }
+  }
+
+  // Strategy 3 — if still nothing, log raw for debugging (dev only)
+  if (!result.corn.semanaAtual) {
+    console.warn("[parseAMS] CORN not found. First 3000 chars:", text.slice(0, 3000));
+  }
+
   return result;
 }
 
@@ -482,12 +509,12 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
       padding:"6px 0", borderBottom:"1px solid #ffffff0a",
     }}>
       <span style={{
-        fontSize:10, color: accent ? B.cardGold : "#b8c8b8",
+        fontSize:12, color: accent ? B.cardGold : "#b8c8b8",
         letterSpacing:"0.07em", textTransform:"uppercase",
         fontWeight: bold ? "600" : "normal",
       }}>{l}</span>
       <span style={{
-        fontSize: bold ? 24 : 18,
+        fontSize: bold ? 22 : 20,
         fontFamily:"'Courier New',monospace",
         fontWeight: bold ? "bold" : "normal",
         color: "#ffffff",
@@ -509,7 +536,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
             filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)", opacity:.9,
           }} alt={label} />
           <div>
-            <div style={{fontSize:22, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
+            <div style={{fontSize:24, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
             <div style={{fontSize:9, color:B.cardGold, letterSpacing:"0.15em"}}>EM TONELADAS MÉTRICAS</div>
           </div>
         </div>
@@ -524,7 +551,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
         <Row label="Semana Atual"       value={fmtE(data.semanaAtual)}    bold />
         <Row label="Semana Anterior"    value={fmtE(data.semanaAnterior)} />
         {dSem !== null && (
-          <div style={{textAlign:"right", fontSize:11, fontFamily:"monospace",
+          <div style={{textAlign:"right", fontSize:13, fontFamily:"monospace",
             color:arrowCol(dSem), marginBottom:2}}>
             {isPos(dSem)?"▲":"▼"} {Math.abs(dSem)}% vs sem. anterior
           </div>
@@ -563,9 +590,9 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
               display:"flex", justifyContent:"space-between",
               padding:"4px 0", borderBottom:"1px solid #ffffff08",
             }}>
-              <span style={{fontSize:10, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
+              <span style={{fontSize:12, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
               <span style={{
-                fontSize: b ? 13 : 11,
+                fontSize: b ? 15 : 13,
                 fontFamily:"monospace", fontWeight: b ? "bold" : "normal",
                 color: "#ffffff",
               }}>{v}</span>
@@ -596,7 +623,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
             filter:"invert(1) sepia(1) saturate(2) hue-rotate(5deg)", opacity:.9,
           }} alt={label} />
           <div>
-            <div style={{fontSize:22, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
+            <div style={{fontSize:24, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{label}</div>
             <div style={{fontSize:9, color:B.cardGold, letterSpacing:"0.15em"}}>PROGRESSO DAS LAVOURAS EUA</div>
           </div>
         </div>
@@ -627,7 +654,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
                 <div key={l} style={{display:"flex", justifyContent:"space-between", padding:"3px 8px"}}>
                   <span style={{fontSize:10, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
                   <span style={{
-                    fontSize: l==="Atual" ? 18 : 14,
+                    fontSize: l==="Atual" ? 20 : 16,
                     fontFamily:"monospace",
                     fontWeight: l==="Atual" ? "bold" : "normal",
                     color: l==="Atual" ? "#EFE8D8" : "#b8c8b8",
@@ -657,12 +684,12 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
                   {c.label}
                 </span>
                 <div style={{display:"flex", gap:8, alignItems:"center", fontFamily:"monospace"}}>
-                  <span style={{fontSize:13, color:"#aaaaaa"}}>
+                  <span style={{fontSize:15, color:"#aaaaaa"}}>
                     {data[c.key]?.anterior ? data[c.key].anterior+"%" : "—"}
                   </span>
                   <span style={{color:B.cardGoldDim}}>→</span>
                   <span style={{
-                    fontSize:18, fontWeight:"bold",
+                    fontSize:20, fontWeight:"bold",
                     color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#ffffff",
                   }}>
                     {data[c.key]?.atual ? data[c.key].atual+"%" : "—"}
@@ -730,7 +757,7 @@ function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, sale
         display:"flex", alignItems:"center", justifyContent:"space-between",
         marginBottom:12,
       }}>
-        <div style={{fontSize:10, color:T.cardGold, fontFamily:"'Cinzel',serif", letterSpacing:"0.18em"}}>{title}</div>
+        <div style={{fontSize:12, color:T.cardGold, fontFamily:"'Cinzel',serif", letterSpacing:"0.18em"}}>{title}</div>
         <button
           onClick={() => handleDL(id, filename)}
           disabled={dl[id]}
@@ -910,12 +937,12 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
             ["Vendas Acumuladas 2024/25",  data.vendasAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:10,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
-              <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
+              <span style={{fontSize:12,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:b?16:13,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
             </div>
           ))}
           {dVendas!==null&&(
-            <div style={{textAlign:"right",fontSize:11,fontFamily:"monospace",color:arrowCol(dVendas),fontWeight:"bold",marginTop:2}}>
+            <div style={{textAlign:"right",fontSize:13,fontFamily:"monospace",color:arrowCol(dVendas),fontWeight:"bold",marginTop:2}}>
               {isPos(dVendas)?"▲":"▼"} {Math.abs(dVendas)}% acumulado
             </div>
           )}
@@ -939,8 +966,8 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
             ["Embarques Acumulados 2024/25",data.embarqueAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:10,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
-              <span style={{fontSize:b?14:11,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
+              <span style={{fontSize:12,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
+              <span style={{fontSize:b?16:13,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
             </div>
           ))}
         </div>
