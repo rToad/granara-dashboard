@@ -266,9 +266,9 @@ function ExportCard({label,icon,data,onUpdate,reportDate}) {
           <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.1em",marginBottom:4}}>EMBARQUE</div>
           <Row label="Expectativa"    value={data.expectativa?Number(data.expectativa).toLocaleString("pt-BR"):"—"} />
           <Row label="Acumulado"      value={fmtBR(data.acumulado2526)} />
-          <Row label="Pendente"       value={exp&&acum?fmtBR(pend):"—"} bold />
+          <Row label="Pendente"       value={exp&&acum?Math.round(pend).toLocaleString("pt-BR"):"—"} bold />
           <Row label="Sem. Restantes" value={data.semanas||"—"} />
-          <Row label="Sem. Esperado"  value={exp&&acum&&sem?fmtBR(semEsp):"—"} bold accent />
+          <Row label="Sem. Esperado"  value={exp&&acum&&sem?Math.round(semEsp).toLocaleString("pt-BR"):"—"} bold accent />
         </div>
       </div>
     </CardShell>
@@ -386,7 +386,7 @@ function CardShellExport({ children, logo, logoFooter }) {
   return (
     <div style={{
       background:"#002621",
-      width:520,
+      width:580,
       fontFamily:"'Helvetica Neue',Arial,sans-serif",
       borderRadius:6,
       overflow:"hidden",
@@ -443,7 +443,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
         fontWeight: bold ? "600" : "normal",
       }}>{l}</span>
       <span style={{
-        fontSize: bold ? 22 : 15,
+        fontSize: bold ? 28 : 18,
         fontFamily:"'Courier New',monospace",
         fontWeight: bold ? "bold" : "normal",
         color: "#ffffff",
@@ -512,7 +512,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
           {[
             ["Expectativa de Embarque",   data.expectativa ? Number(data.expectativa).toLocaleString("pt-BR") : "—", false],
             ["Embarque Acumulado",         fmtE(data.acumulado2526), false],
-            ["Embarque Pendente",          exp&&acum ? fmtE(pend) : "—", true],
+            ["Embarque Pendente",          exp&&acum ? Math.round(pend).toLocaleString("pt-BR") : "—", true],
             ["Semanas Restantes",          data.semanas||"—", false],
             ["Embarque Semanal Esperado",  exp&&acum&&sem ? Math.round(semEsp).toLocaleString("pt-BR") : "—", true],
           ].map(([l,v,b]) => (
@@ -584,7 +584,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy }
                 <div key={l} style={{display:"flex", justifyContent:"space-between", padding:"3px 8px"}}>
                   <span style={{fontSize:10, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
                   <span style={{
-                    fontSize: l==="Atual" ? 15 : 12,
+                    fontSize: l==="Atual" ? 18 : 14,
                     fontFamily:"monospace",
                     fontWeight: l==="Atual" ? "bold" : "normal",
                     color: l==="Atual" ? "#EFE8D8" : "#b8c8b8",
@@ -614,12 +614,12 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy }
                   {c.label}
                 </span>
                 <div style={{display:"flex", gap:8, alignItems:"center", fontFamily:"monospace"}}>
-                  <span style={{fontSize:10, color:"#aaaaaa"}}>
+                  <span style={{fontSize:13, color:"#aaaaaa"}}>
                     {data[c.key]?.anterior ? data[c.key].anterior+"%" : "—"}
                   </span>
                   <span style={{color:"#65562E"}}>→</span>
                   <span style={{
-                    fontSize:14, fontWeight:"bold",
+                    fontSize:18, fontWeight:"bold",
                     color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#ffffff",
                   }}>
                     {data[c.key]?.atual ? data[c.key].atual+"%" : "—"}
@@ -820,7 +820,7 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
     const n = parseFloat(String(v||"").replace(/,/g,"."));
     if (isNaN(n) || v === "") return "—";
     // FAS data is in thousands — multiply by 1000 for full number display
-    return Math.round(n * 1000).toLocaleString("pt-BR");
+    return Math.roundMath.round(n * 1000).toLocaleString("pt-BR");
   };
   const pS = (a,b) => {
     const na=parseFloat(String(a).replace(/,/g,".")), nb=parseFloat(String(b).replace(/,/g,"."));
