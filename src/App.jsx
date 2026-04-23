@@ -157,7 +157,7 @@ function parseCropProgress(text) {
 const toNum = v => parseFloat(String(v||"").replace(/,/g,"").replace(".","").replace(",",".")) || 0;
 const fmtBR = v => {
   const n = parseFloat(String(v||"").replace(/,/g,""));
-  return isNaN(n)||v===""?"—":n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  return isNaN(n)||v===""?"—":Math.round(n).toLocaleString("pt-BR");
 };
 const pctDiff = (a,b) => {
   const na=parseFloat(String(a).replace(/,/g,"")), nb=parseFloat(String(b).replace(/,/g,""));
@@ -373,7 +373,7 @@ function CropCard({label,icon,isSoy,data,onUpdate,cropDate}) {
 
 function fmtE(v) {
   const n = parseFloat(String(v||"").replace(/,/g,""));
-  return isNaN(n)||v===""?"—":n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  return isNaN(n)||v===""?"—":Math.round(n).toLocaleString("pt-BR");
 }
 function pctE(a,b){
   const na=parseFloat(String(a).replace(/,/g,"")),nb=parseFloat(String(b).replace(/,/g,""));
@@ -443,7 +443,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
         fontWeight: bold ? "600" : "normal",
       }}>{l}</span>
       <span style={{
-        fontSize: bold ? 16 : 13,
+        fontSize: bold ? 22 : 15,
         fontFamily:"'Courier New',monospace",
         fontWeight: bold ? "bold" : "normal",
         color: "#ffffff",
@@ -514,7 +514,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter }) {
             ["Embarque Acumulado",         fmtE(data.acumulado2526), false],
             ["Embarque Pendente",          exp&&acum ? fmtE(pend) : "—", true],
             ["Semanas Restantes",          data.semanas||"—", false],
-            ["Embarque Semanal Esperado",  exp&&acum&&sem ? fmtE(semEsp) : "—", true],
+            ["Embarque Semanal Esperado",  exp&&acum&&sem ? Math.round(semEsp).toLocaleString("pt-BR") : "—", true],
           ].map(([l,v,b]) => (
             <div key={l} style={{
               display:"flex", justifyContent:"space-between",
@@ -584,7 +584,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy }
                 <div key={l} style={{display:"flex", justifyContent:"space-between", padding:"3px 8px"}}>
                   <span style={{fontSize:10, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
                   <span style={{
-                    fontSize: l==="Atual" ? 13 : 11,
+                    fontSize: l==="Atual" ? 15 : 12,
                     fontFamily:"monospace",
                     fontWeight: l==="Atual" ? "bold" : "normal",
                     color: l==="Atual" ? "#EFE8D8" : "#b8c8b8",
@@ -820,7 +820,7 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter }) {
     const n = parseFloat(String(v||"").replace(/,/g,"."));
     if (isNaN(n) || v === "") return "—";
     // FAS data is in thousands — multiply by 1000 for full number display
-    return (n * 1000).toLocaleString("pt-BR", {minimumFractionDigits:0, maximumFractionDigits:0});
+    return Math.round(n * 1000).toLocaleString("pt-BR");
   };
   const pS = (a,b) => {
     const na=parseFloat(String(a).replace(/,/g,".")), nb=parseFloat(String(b).replace(/,/g,"."));
