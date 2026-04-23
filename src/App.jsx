@@ -12,9 +12,9 @@ const BRANDS = {
     name: "GRANARA",
     cardBg:      "#002621",
     cardMid:     "#013A34",
-    cardBorder:  B.cardGold,
-    cardGold:    B.cardGold,
-    cardGoldDim: B.cardGoldDim,
+    cardBorder:  "#AF965D",
+    cardGold:    "#AF965D",
+    cardGoldDim: "#65562E",
     headerGrad:  "linear-gradient(90deg,#001a17 0%,#013A34 100%)",
     sectionBg:   "#013A3444",
     logoHeader:  LOGO_SHIELD_GOLD,
@@ -22,6 +22,9 @@ const BRANDS = {
     footerUrl:   "app.gtrd.com.br/relatorios",
     accentPos:   "#6fcf97",
     accentNeg:   "#eb5757",
+    // ExportTab compat aliases
+    accent:      "#AF965D",
+    commodityStyle: { background:"linear-gradient(90deg,#013A34,#002621)", borderBottom:"1px solid #AF965D44" },
   },
   getreide: {
     id: "getreide",
@@ -38,6 +41,9 @@ const BRANDS = {
     footerUrl:   "app.gtrd.com.br/relatorios",
     accentPos:   "#6fcf97",
     accentNeg:   "#eb5757",
+    // ExportTab compat aliases
+    accent:      "#FFD768",
+    commodityStyle: { background:"linear-gradient(90deg,#1C8152,#0d2e0d)", borderBottom:"1px solid #FFD76844" },
   },
 };
 
@@ -47,7 +53,7 @@ const ICON_SOY         = "/logos/icon-soy.png";
 // ── Brand Colors ──────────────────────────────────────────────────────────────
 const G = {
   darkGreen: "#002621", midGreen: "#013A34", slateGreen: "#2F3F3C",
-  cream: "#EFE8D8", gold: B.cardGold, goldDark: B.cardGoldDim,
+  cream: "#EFE8D8", gold: "#AF965D", goldDark: "#65562E",
 };
 
 // ── Parsers ───────────────────────────────────────────────────────────────────
@@ -407,52 +413,6 @@ function CropCard({label,icon,isSoy,data,onUpdate,cropDate}) {
 
 
 
-// ── Brand Themes ──────────────────────────────────────────────────────────────
-const BRANDS = {
-  granara: {
-    name: "GRANARA",
-    tagline: "O AGRO MAIS INTELIGENTE E SEGURO",
-    bg:        "#002621",
-    bgMid:     "#013A34",
-    border:    B.cardGold,
-    borderDim: B.cardGoldDim,
-    accent:    B.cardGold,
-    text:      "#EFE8D8",
-    logoHeader:  "/logos/shield-gold.png",
-    logoFooter:  "/logos/wordmark-gold.png",
-    url:         {T.url},
-    headerStyle: {
-      background: "linear-gradient(90deg,#001a17 0%,#013A34 100%)",
-      borderBottom: "2px solid #AF965D",
-    },
-    commodityStyle: {
-      background: "linear-gradient(90deg,#013A34,#002621)",
-      borderBottom: "1px solid #AF965D44",
-    },
-  },
-  getreide: {
-    name: "GETREIDE",
-    tagline: "COMMODITIES",
-    bg:        "#0d2e0d",
-    bgMid:     "#1C8152",
-    border:    "#FFD768",
-    borderDim: "#BFD730",
-    accent:    "#FFD768",
-    text:      "#ffffff",
-    logoHeader:  "/logos/gtrd-wordmark.png",
-    logoFooter:  "/logos/gtrd-shield.png",
-    url:         {T.url},
-    headerStyle: {
-      background: "linear-gradient(90deg,#0d2e0d 0%,#1C8152 100%)",
-      borderBottom: "2px solid #FFD768",
-    },
-    commodityStyle: {
-      background: "linear-gradient(90deg,#1C8152,#0d2e0d)",
-      borderBottom: "1px solid #FFD76844",
-    },
-  },
-};
-
 // ── Export Card Renderers ─────────────────────────────────────────────────────
 
 function fmtE(v) {
@@ -527,7 +487,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
         fontWeight: bold ? "600" : "normal",
       }}>{l}</span>
       <span style={{
-        fontSize: bold ? 30 : 20,
+        fontSize: bold ? 24 : 18,
         fontFamily:"'Courier New',monospace",
         fontWeight: bold ? "bold" : "normal",
         color: "#ffffff",
@@ -536,10 +496,10 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
   );
 
   return (
-    <CardShellExport logo={logo} logoFooter={logoFooter} theme={theme}>
+    <CardShellExport logo={logo} logoFooter={logoFooter} brand={B}>
       {/* commodity header */}
       <div style={{
-        ...T.commodityStyle,
+        ...B.commodityStyle,
         padding:"14px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
@@ -623,10 +583,10 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
   const activeStages = Object.entries(stageLabels).filter(([k]) => data[k]?.atual || data[k]?.anoPassado);
 
   return (
-    <CardShellExport logo={logo} logoFooter={logoFooter} theme={theme}>
+    <CardShellExport logo={logo} logoFooter={logoFooter} brand={B}>
       {/* commodity header */}
       <div style={{
-        ...T.commodityStyle,
+        ...B.commodityStyle,
         padding:"14px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
@@ -656,7 +616,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
         {activeStages.map(([k, lbl]) => (
           <div key={k} style={{marginBottom:10}}>
             <div style={{
-              background:T.bgMid, borderLeft:`3px solid ${B.accent}`,
+              background:B.cardMid, borderLeft:`3px solid ${B.accent}`,
               padding:"4px 10px", marginBottom:6,
             }}>
               <span style={{fontSize:10, color:B.accent, letterSpacing:"0.14em", fontWeight:"bold"}}>{lbl}</span>
@@ -748,9 +708,9 @@ async function downloadCardPNG(elementId, filename) {
 }
 
 function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, salesDate, brand }) {
-  const T = BRANDS[brand] || BRANDS.granara;
-  const cardLogo = B.logoHeader;
-  const cardLogoFooter = B.logoFooter;
+  const T = brand || BRANDS.granara;
+  const cardLogo = T.logoHeader;
+  const cardLogoFooter = T.logoFooter;
   const [dl, setDl] = useState({});
 
   async function handleDL(id, filename) {
@@ -770,14 +730,14 @@ function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, sale
         display:"flex", alignItems:"center", justifyContent:"space-between",
         marginBottom:12,
       }}>
-        <div style={{fontSize:10, color:B.cardGold, fontFamily:"'Cinzel',serif", letterSpacing:"0.18em"}}>{title}</div>
+        <div style={{fontSize:10, color:T.cardGold, fontFamily:"'Cinzel',serif", letterSpacing:"0.18em"}}>{title}</div>
         <button
           onClick={() => handleDL(id, filename)}
           disabled={dl[id]}
           style={{
-            background: dl[id] ? "transparent" : B.cardGold,
-            border:"1px solid #AF965D", borderRadius:2,
-            color: dl[id] ? B.cardGold : "#002621",
+            background: dl[id] ? "transparent" : T.cardGold,
+            border:`1px solid ${T.cardGoldDim}`, borderRadius:2,
+            color: dl[id] ? T.cardGold : "#002621",
             fontFamily:"'Cinzel',serif", fontSize:9, letterSpacing:"0.12em",
             padding:"6px 14px", cursor: dl[id] ? "wait" : "pointer", fontWeight:"bold",
           }}>
@@ -797,56 +757,56 @@ function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, sale
     <div style={{padding:"20px 26px 60px", maxWidth:1300, margin:"0 auto"}}>
       <div style={{fontSize:10, color:"#AF965D55", fontFamily:"'Cinzel',serif",
         letterSpacing:"0.12em", marginBottom:24}}>
-        CARDS PRONTOS PARA COMPARTILHAR · IDENTIDADE GRANARA
+        CARDS PRONTOS PARA COMPARTILHAR · IDENTIDADE {T.name}
       </div>
 
       <Section title="INSPEÇÕES · MILHO" id="ec-corn" filename={`granara-milho-${date}.png`}>
-        <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+        <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
       </Section>
 
       <Section title="INSPEÇÕES · SOJA" id="ec-soy" filename={`granara-soja-${date}.png`}>
-        <ExportCardExport label="SOJA" icon={ICON_SOY} data={exportData.soy} reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+        <ExportCardExport label="SOJA" icon={ICON_SOY} data={exportData.soy} reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
       </Section>
 
       <Section title="INSPEÇÕES · MILHO + SOJA" id="ec-both" filename={`granara-exportacoes-${date}.png`}>
         <div style={{display:"flex", gap:16}}>
-          <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
-          <ExportCardExport label="SOJA"  icon={ICON_SOY}  data={exportData.soy}  reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+          <ExportCardExport label="MILHO" icon={ICON_CORN} data={exportData.corn} reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
+          <ExportCardExport label="SOJA"  icon={ICON_SOY}  data={exportData.soy}  reportDate={reportDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
         </div>
       </Section>
 
 
       <Section title="VENDAS · MILHO" id="sc-corn" filename={`granara-milho-vendas-${salesDate||"sales"}.png`}>
         <SalesCardExport label="MILHO" icon={ICON_CORN} data={salesData.corn} salesDate={salesDate}
-          logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+          logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
       </Section>
 
       <Section title="VENDAS · SOJA" id="sc-soy" filename={`granara-soja-vendas-${salesDate||"sales"}.png`}>
         <SalesCardExport label="SOJA" icon={ICON_SOY} data={salesData.soy} salesDate={salesDate}
-          logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+          logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
       </Section>
 
       <Section title="VENDAS · MILHO + SOJA" id="sc-both" filename={`granara-vendas-${salesDate||"sales"}.png`}>
         <div style={{display:"flex", gap:16}}>
           <SalesCardExport label="MILHO" icon={ICON_CORN} data={salesData.corn} salesDate={salesDate}
-            logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+            logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
           <SalesCardExport label="SOJA"  icon={ICON_SOY}  data={salesData.soy}  salesDate={salesDate}
-            logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+            logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
         </div>
       </Section>
 
       <Section title="LAVOURAS · MILHO" id="cc-corn" filename={`granara-milho-lavoura-${cdate}.png`}>
-        <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} isSoy={false} />
+        <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={false} />
       </Section>
 
       <Section title="LAVOURAS · SOJA" id="cc-soy" filename={`granara-soja-lavoura-${cdate}.png`}>
-        <CropCardExport label="SOJA" icon={ICON_SOY} data={cropData.soy} cropDate={cropDate} logo={LOGO_SHIELD_GOLD} logoFooter={LOGO_WORDMARK} isSoy={true} />
+        <CropCardExport label="SOJA" icon={ICON_SOY} data={cropData.soy} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={true} />
       </Section>
 
       <Section title="LAVOURAS · MILHO + SOJA" id="cc-both" filename={`granara-lavouras-${cdate}.png`}>
         <div style={{display:"flex", gap:16}}>
-          <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} isSoy={false} />
-          <CropCardExport label="SOJA"  icon={ICON_SOY}  data={cropData.soy}  cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} theme={T} isSoy={true}  />
+          <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={false} />
+          <CropCardExport label="SOJA"  icon={ICON_SOY}  data={cropData.soy}  cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={true}  />
         </div>
       </Section>
     </div>
@@ -907,7 +867,7 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
     const n = parseFloat(String(v||"").replace(/,/g,"."));
     if (isNaN(n) || v === "") return "—";
     // FAS data is in thousands — multiply by 1000 for full number display
-    return Math.roundMath.round(n * 1000).toLocaleString("pt-BR");
+    return Math.round(n * 1000).toLocaleString("pt-BR");
   };
   const pS = (a,b) => {
     const na=parseFloat(String(a).replace(/,/g,".")), nb=parseFloat(String(b).replace(/,/g,"."));
@@ -919,10 +879,10 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
   const dVendas = pS(data.vendasAcum2526, data.vendasAcum2425);
 
   return (
-    <CardShellExport logo={logo} logoFooter={logoFooter} theme={theme}>
+    <CardShellExport logo={logo} logoFooter={logoFooter} brand={B}>
       {/* commodity header */}
       <div style={{
-        ...T.commodityStyle,
+        ...B.commodityStyle,
         padding:"14px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
@@ -994,6 +954,9 @@ export default function App() {
   const [tab, setTab]       = useState("export");
   const [brandId, setBrandId] = useState("granara");
   const brand = BRANDS[brandId];
+  const T = brand;
+  const cardLogo = brand.logoHeader;
+  const cardLogoFooter = brand.logoFooter;
   const [reportDate, setRD] = useState("");
   const [cropDate,   setCD] = useState("");
   const [loading,  setLd]   = useState({ams:false, crop:false, sales:false});
@@ -1032,7 +995,6 @@ export default function App() {
   const [cropManualUrl, setCropManualUrl] = useState("");
   const [showCropUrl,   setShowCropUrl]   = useState(false);
   const [salesData,    setSalesData]   = useState({corn:{}, soy:{}});
-  const [brand, setBrand] = useState("granara"); // "granara" | "getreide"
   const [salesDate,    setSalesDate]   = useState("");
 
   const fetchCrop = useCallback(async (manualUrl) => {
@@ -1201,9 +1163,9 @@ export default function App() {
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
               <SalesCardExport label="MILHO" icon={ICON_CORN} data={salesData.corn} salesDate={salesDate}
-                logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+                logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
               <SalesCardExport label="SOJA"  icon={ICON_SOY}  data={salesData.soy}  salesDate={salesDate}
-                logo={cardLogo} logoFooter={cardLogoFooter} theme={T} />
+                logo={cardLogo} logoFooter={cardLogoFooter} brand={T} />
             </div>
           </div>
         )}
