@@ -1001,7 +1001,7 @@ export default function App() {
   const fetchAMS = useCallback(async () => {
     setLd(p=>({...p,ams:true})); setSt(p=>({...p,ams:"Buscando..."}));
     try {
-      const res  = await fetch("/.netlify/functions/proxy-ams");
+      const res  = await fetch("/api/proxy-ams");
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
       const data = parseAMS(text);
@@ -1028,8 +1028,8 @@ export default function App() {
     setLd(p=>({...p,crop:true})); setSt(p=>({...p,crop:"Buscando..."}));
     try {
       const url = manualUrl
-        ? `/.netlify/functions/proxy-crop?url=${encodeURIComponent(manualUrl)}`
-        : "/.netlify/functions/proxy-crop";
+        ? `/api/proxy-crop?url=${encodeURIComponent(manualUrl)}`
+        : "/api/proxy-crop";
       const res  = await fetch(url);
       const text = await res.text();
       if(!res.ok) {
@@ -1053,7 +1053,7 @@ export default function App() {
   const fetchSales = useCallback(async () => {
     setLd(p=>({...p,sales:true})); setSt(p=>({...p,sales:"Buscando..."}));
     try {
-      const res  = await fetch("/.netlify/functions/proxy-sales");
+      const res  = await fetch("/api/proxy-sales");
       const text = await res.text();
       if (!res.ok) throw new Error(text.split("\n")[0]);
       const data = parseSales(text);
