@@ -19,6 +19,8 @@ const BRANDS = {
     sectionBg:   "#013A3444",
     logoHeader:  LOGO_WORDMARK,
     logoFooter:  LOGO_SHIELD_GOLD,
+    logoHeaderH: 44,
+    logoFooterH: 36,
     footerUrl:   "app.gtrd.com.br/relatorios",
     accentPos:   "#6fcf97",
     accentNeg:   "#eb5757",
@@ -38,6 +40,8 @@ const BRANDS = {
     sectionBg:   "#1C815222",
     logoHeader:  "/logos/gtrd-wordmark.png",
     logoFooter:  "/logos/GETREIDE_COMMODITIES-01.png",
+    logoHeaderH: 38,
+    logoFooterH: 48,
     footerUrl:   "app.gtrd.com.br/relatorios",
     accentPos:   "#6fcf97",
     accentNeg:   "#eb5757",
@@ -470,7 +474,7 @@ function CardShellExport({ children, logo, logoFooter, brand }) {
         padding:"12px 20px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
       }}>
-        <img src={logo || B.logoHeader} style={{height:44, objectFit:"contain", filter:"drop-shadow(0 2px 6px rgba(0,0,0,0.5))"}} alt={B.name} />
+        <img src={logo || B.logoHeader} style={{height: B.logoHeaderH || 44, objectFit:"contain", filter:"drop-shadow(0 2px 6px rgba(0,0,0,0.5))"}} alt={B.name} />
         <div style={{fontSize:8, color:`${B.cardGold}88`, letterSpacing:"0.2em"}}>FONTE: USDA</div>
       </div>
 
@@ -485,7 +489,7 @@ function CardShellExport({ children, logo, logoFooter, brand }) {
         <span style={{fontSize:9, color: B.cardGoldDim, letterSpacing:"0.12em", fontStyle:"italic"}}>
           {B.footerUrl}
         </span>
-        <img src={logoFooter || B.logoFooter} style={{height:36, objectFit:"contain"}} alt={B.name} />
+        <img src={logoFooter || B.logoFooter} style={{height: B.logoFooterH || 36, objectFit:"contain"}} alt={B.name} />
       </div>
     </div>
   );
