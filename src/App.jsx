@@ -1271,294 +1271,313 @@ function parseWASDE(xmlText) {
   };
 }
 
-// ── WASDE Card Shell ──────────────────────────────────────────────────────────
-function WasdeShell({ children, brand, logo, logoFooter, title, reportLabel }) {
-  const B = brand || BRANDS.granara;
+// ── WASDE Card — Modelo D ─────────────────────────────────────────────────────
+// Coluna ABR atual com fundo dourado que percorre o card inteiro (header → footer).
+// Cabeçalho de colunas repetido em cada seção (EUA / Mundo) para facilitar leitura
+// sem precisar rolar de volta ao topo.
+// Rótulos de linha em Arial — legível em 12px. Cinzel só em títulos.
+
+// Larguras fixas das colunas (px)
+const CW = { label: 190, h0: 76, h1: 76, p0: 80, p1: 92, ex: 76 };
+
+// Fundo da coluna ABR atual — percorre verticalmente
+const CUR_BG   = 'rgba(175,150,93,0.11)';
+const CUR_BL   = '1px solid rgba(175,150,93,0.28)';
+
+function WasdeColHeader({ cols, B }) {
   return (
     <div style={{
-      width: 800,
-      background: B.cardBg,
-      border: `2px solid ${B.cardGold}`,
-      borderRadius: 6,
-      overflow: 'hidden',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+      display: 'flex', alignItems: 'flex-end',
+      padding: '8px 0 6px',
+      borderBottom: `1px solid ${B.cardGold}44`,
+      background: '#001a17',
     }}>
-      {/* ── Header: logo + fonte ── */}
-      <div style={{
-        background: B.headerGrad,
-        borderBottom: `2px solid ${B.cardGold}66`,
-        padding: '10px 20px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <img src={logo || B.logoHeader} alt={B.name}
-          style={{ height: B.logoHeaderH || 44, objectFit: 'contain',
-            filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.5))' }} />
-        <div style={{
-          fontSize: 10, color: `${B.cardGold}88`,
-          letterSpacing: '0.2em', fontFamily: "'Cinzel',serif",
-        }}>FONTE: USDA · WASDE</div>
+      {/* Espaço do rótulo */}
+      <div style={{ width: CW.label, flexShrink: 0 }} />
+
+      {/* Hist 0 */}
+      <div style={{ width: CW.h0, textAlign: 'right', paddingRight: 8 }}>
+        <div style={{ fontSize: 9, color: `${B.cardGold}44`, fontFamily: 'Arial,sans-serif', lineHeight: 1.3 }}>
+          {cols[0]?.safra || ''}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: `${B.cardGold}55`, fontFamily: 'Arial,sans-serif' }}>
+          {cols[0]?.month || ''}
+        </div>
       </div>
 
-      {/* ── Commodity strip ── */}
-      <div style={{
-        ...B.commodityStyle,
-        padding: '14px 20px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <div>
-          <div style={{
-            fontSize: 28, fontWeight: 700, letterSpacing: '0.22em',
-            color: '#EFE8D8', fontFamily: "'Cinzel',serif",
-          }}>{title}</div>
-          <div style={{
-            fontSize: 10, color: `${B.cardGold}bb`, letterSpacing: '0.12em',
-            marginTop: 3, fontFamily: "'Cinzel',serif",
-          }}>RELATÓRIO MENSAL USDA · OFERTA E DEMANDA</div>
+      {/* Hist 1 */}
+      <div style={{ width: CW.h1, textAlign: 'right', paddingRight: 8 }}>
+        <div style={{ fontSize: 9, color: `${B.cardGold}55`, fontFamily: 'Arial,sans-serif', lineHeight: 1.3 }}>
+          {cols[1]?.safra || ''}
         </div>
-        {reportLabel && (
-          <div style={{
-            fontSize: 13, color: B.cardGold, fontWeight: 700,
-            letterSpacing: '0.1em', fontFamily: "'Cinzel',serif",
-            background: `${B.cardGold}18`,
-            border: `1px solid ${B.cardGold}55`,
-            borderRadius: 3, padding: '5px 12px',
-          }}>{reportLabel}</div>
-        )}
+        <div style={{ fontSize: 11, fontWeight: 700, color: `${B.cardGold}77`, fontFamily: 'Arial,sans-serif' }}>
+          {cols[1]?.month || ''}
+        </div>
       </div>
 
-      {/* ── Body ── */}
-      <div style={{ padding: '16px 20px 12px' }}>{children}</div>
+      {/* Divisor hist / proj */}
+      <div style={{ width: 1, background: `${B.cardGold}33`, alignSelf: 'stretch', margin: '0 4px' }} />
 
-      {/* ── Footer ── */}
-      <div style={{
-        borderTop: `1px solid ${B.cardGold}22`,
-        background: `${B.cardMid}22`,
-        padding: '8px 20px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
-        <div style={{
-          fontSize: 9, color: `${B.cardGold}55`,
-          fontFamily: 'monospace', fontStyle: 'italic',
-        }}>
-          Em milhões de toneladas · *Área em milhões de ha · *Produtividade bu/ha
+      {/* Proj prev */}
+      <div style={{ width: CW.p0, textAlign: 'right', paddingRight: 8 }}>
+        <div style={{ fontSize: 9, color: `${B.cardGold}66`, fontFamily: 'Arial,sans-serif', lineHeight: 1.3 }}>
+          {cols[2]?.safra || ''}
         </div>
-        <img src={logoFooter || B.logoFooter} alt={B.name}
-          style={{ height: B.logoFooterH || 36, objectFit: 'contain' }} />
+        <div style={{ fontSize: 11, fontWeight: 700, color: `${B.cardGold}99`, fontFamily: 'Arial,sans-serif' }}>
+          {cols[2]?.month || ''}
+        </div>
+      </div>
+
+      {/* Proj cur — com fundo */}
+      <div style={{
+        width: CW.p1, textAlign: 'right', paddingRight: 10,
+        background: CUR_BG,
+        borderLeft: CUR_BL, borderRight: CUR_BL,
+        paddingTop: 4, paddingBottom: 4,
+        marginBottom: -6,   // estica até a borda inferior do header
+      }}>
+        <div style={{ fontSize: 9, color: `${B.cardGold}bb`, fontFamily: 'Arial,sans-serif', lineHeight: 1.3 }}>
+          {cols[3]?.safra || ''}
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: B.cardGold, fontFamily: 'Arial,sans-serif', letterSpacing: '0.06em' }}>
+          {cols[3]?.month || ''}
+        </div>
+      </div>
+
+      {/* Divisor proj / expec */}
+      <div style={{ width: 1, background: '#6fcf9733', alignSelf: 'stretch', margin: '0 4px' }} />
+
+      {/* EXPEC */}
+      <div style={{ width: CW.ex, textAlign: 'right', paddingRight: 8 }}>
+        <div style={{ fontSize: 9, lineHeight: 1.3 }}>&nbsp;</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#6fcf97', fontFamily: 'Arial,sans-serif', letterSpacing: '0.06em' }}>
+          EXPEC
+        </div>
       </div>
     </div>
   );
 }
 
-// ── WASDE Section (table inside card) ────────────────────────────────────────
-// Princípios de legibilidade aplicados:
-//   • Rótulos de linha em Arial/sans-serif (não Cinzel) — muito mais legível em small
-//   • Tamanhos mínimos: 12px para dados, 11px para rótulos normais, 13px para hl
-//   • Contraste real: normais em #ccd6cc (não apagado), hl em branco puro
-//   • Separador visual sólido entre histórico e projeção (linha vertical + fundo)
-//   • Coluna EXPEC com fundo diferenciado — não se confunde com dados USDA
-//   • Zebra sutil mas perceptível em linhas alternadas
-//   • Altura de linha generosa (padding vertical real)
-
-function WasdeSection({ title, rows, cols, expec, onExpec, brand, editing }) {
-  const B = brand || BRANDS.granara;
-
-  // Números sempre com 2 decimais, alinhamento decimal garantido por monospace
+function WasdeRow({ label, values, hl, expVal, editing, onExpec, B, rowIdx }) {
   const fmt = v => v == null
     ? '—'
     : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Larguras das 4 colunas de dados + EXPEC
-  // Hist0  Hist1 | Proj-prev  Proj-cur | EXPEC
-  const CW = { h0: 74, h1: 74, p0: 78, p1: 82, ex: 78 };
+  const isEven = rowIdx % 2 === 0;
+  const rowBg  = hl ? `${B.cardGold}12` : isEven ? 'rgba(255,255,255,0.018)' : 'transparent';
 
-  // Cor por coluna: histórico acinzentado, proj-prev dourado suave, proj-cur pleno
-  const numColor = (colIdx, hl) => {
-    if (colIdx === 3) return hl ? '#ffffff'  : '#e2d9c4'; // proj atual — mais brilhante
-    if (colIdx === 2) return hl ? '#d8c888'  : '#9e8e60'; // proj anterior — ouro médio
-    return                    hl ? '#aaaaaa'  : '#777777'; // histórico — cinza
-  };
-  const numSize  = (colIdx, hl) => hl ? (colIdx === 3 ? 14 : 12) : (colIdx === 3 ? 13 : 11);
-  const numBold  = (colIdx, hl) => (hl && colIdx >= 2) ? 700 : (hl ? 600 : 400);
+  // Cores e tamanhos por coluna
+  const cfg = [
+    { w: CW.h0, color: hl ? '#999' : '#666',    size: 11, weight: hl ? 500 : 400 },
+    { w: CW.h1, color: hl ? '#aaa' : '#777',    size: 11, weight: hl ? 500 : 400 },
+    { w: CW.p0, color: hl ? '#c8a840' : '#8e7e50', size: hl ? 12 : 11, weight: hl ? 600 : 400 },
+    { w: CW.p1, color: hl ? '#ffffff' : '#ddd4bc', size: hl ? 15 : 13, weight: hl ? 700 : 600 },
+  ];
 
   return (
-    <div style={{ marginBottom: 20 }}>
-
-      {/* ── Cabeçalho da seção + labels de coluna ── */}
+    <div style={{
+      display: 'flex', alignItems: 'center',
+      background: rowBg,
+      borderBottom: `1px solid ${hl ? B.cardGold + '1a' : 'rgba(255,255,255,0.03)'}`,
+      minHeight: hl ? 38 : 32,
+    }}>
+      {/* Rótulo */}
       <div style={{
-        background: `linear-gradient(90deg, ${B.cardMid} 0%, ${B.cardBg}cc 100%)`,
-        borderLeft: `3px solid ${B.cardGold}`,
-        borderBottom: `1px solid ${B.cardGold}44`,
-        padding: '8px 12px 6px 14px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+        width: CW.label, flexShrink: 0,
+        fontSize: hl ? 12 : 11,
+        fontFamily: 'Arial,sans-serif',
+        fontWeight: hl ? 700 : 400,
+        color: hl ? B.cardGold : '#b8ccb8',
+        letterSpacing: hl ? '0.06em' : '0.01em',
+        textTransform: hl ? 'uppercase' : 'none',
+        padding: '0 0 0 16px',
+      }}>{label}</div>
+
+      {/* Hist 0 */}
+      <div style={{ width: cfg[0].w, textAlign: 'right', paddingRight: 8,
+        fontFamily: "'Courier New',monospace", fontSize: cfg[0].size,
+        color: cfg[0].color, fontWeight: cfg[0].weight }}>
+        {fmt(values[0])}
+      </div>
+
+      {/* Hist 1 */}
+      <div style={{ width: cfg[1].w, textAlign: 'right', paddingRight: 8,
+        fontFamily: "'Courier New',monospace", fontSize: cfg[1].size,
+        color: cfg[1].color, fontWeight: cfg[1].weight }}>
+        {fmt(values[1])}
+      </div>
+
+      {/* Divisor */}
+      <div style={{ width: 1, background: `${B.cardGold}22`, alignSelf: 'stretch', margin: '0 4px' }} />
+
+      {/* Proj prev */}
+      <div style={{ width: cfg[2].w, textAlign: 'right', paddingRight: 8,
+        fontFamily: "'Courier New',monospace", fontSize: cfg[2].size,
+        color: cfg[2].color, fontWeight: cfg[2].weight }}>
+        {fmt(values[2])}
+      </div>
+
+      {/* Proj cur — fundo de destaque */}
+      <div style={{
+        width: CW.p1, textAlign: 'right', paddingRight: 10,
+        fontFamily: "'Courier New',monospace",
+        fontSize: cfg[3].size, color: cfg[3].color, fontWeight: cfg[3].weight,
+        background: CUR_BG,
+        borderLeft: CUR_BL, borderRight: CUR_BL,
+        alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
       }}>
-        {/* Título da seção */}
+        {fmt(values[3])}
+      </div>
+
+      {/* Divisor */}
+      <div style={{ width: 1, background: '#6fcf9722', alignSelf: 'stretch', margin: '0 4px' }} />
+
+      {/* EXPEC */}
+      <div style={{ width: CW.ex, textAlign: 'right', paddingRight: 8 }}>
+        {editing ? (
+          <input
+            type="text"
+            defaultValue={expVal != null ? String(expVal).replace('.', ',') : ''}
+            onBlur={e => {
+              const raw = e.target.value.replace(',', '.');
+              const num = parseFloat(raw);
+              onExpec && onExpec(label, isNaN(num) ? null : num);
+            }}
+            style={{
+              width: 68, textAlign: 'right', fontSize: 12,
+              background: '#6fcf9715', border: '1px solid #6fcf9755',
+              borderRadius: 2, color: '#6fcf97',
+              fontFamily: "'Courier New',monospace",
+              padding: '2px 4px', outline: 'none',
+            }}
+            placeholder="—"
+          />
+        ) : (
+          <div style={{
+            fontFamily: "'Courier New',monospace",
+            fontSize: hl ? 14 : 12,
+            color: expVal != null ? '#6fcf97' : 'rgba(111,207,151,0.18)',
+            fontWeight: hl ? 700 : 400,
+          }}>
+            {expVal != null
+              ? Number(expVal).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : '—'}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WasdeSection({ title, rows, cols, expec, onExpec, brand, editing }) {
+  const B = brand || BRANDS.granara;
+  return (
+    <div style={{ marginBottom: 0 }}>
+      {/* Cabeçalho da seção */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        background: `linear-gradient(90deg,${B.cardMid},${B.cardBg}cc)`,
+        borderTop: `2px solid ${B.cardGold}22`,
+        borderBottom: `1px solid ${B.cardGold}33`,
+        padding: '7px 0 7px 13px',
+        borderLeft: `3px solid ${B.cardGold}`,
+      }}>
         <div style={{
-          fontSize: 11, color: B.cardGold, fontWeight: 700,
-          letterSpacing: '0.15em', fontFamily: "'Cinzel',serif",
-          minWidth: 160,
+          fontSize: 11, fontWeight: 700, color: B.cardGold,
+          letterSpacing: '0.16em', fontFamily: "'Cinzel',serif",
+          flex: 1,
         }}>{title}</div>
+        {/* Mini cabeçalho de colunas repetido — apenas meses */}
+        <div style={{ display: 'flex', alignItems: 'center', paddingRight: 4 }}>
+          <div style={{ width: CW.h0, textAlign: 'right', paddingRight: 8, fontSize: 9, color: `${B.cardGold}44`, fontFamily: 'Arial,sans-serif' }}>{cols[0]?.month}</div>
+          <div style={{ width: CW.h1, textAlign: 'right', paddingRight: 8, fontSize: 9, color: `${B.cardGold}55`, fontFamily: 'Arial,sans-serif' }}>{cols[1]?.month}</div>
+          <div style={{ width: 1, background: `${B.cardGold}22`, alignSelf: 'stretch', margin: '0 4px' }} />
+          <div style={{ width: CW.p0, textAlign: 'right', paddingRight: 8, fontSize: 9, color: `${B.cardGold}77`, fontFamily: 'Arial,sans-serif' }}>{cols[2]?.month}</div>
+          <div style={{ width: CW.p1, textAlign: 'right', paddingRight: 10, fontSize: 10, color: B.cardGold, fontWeight: 700, fontFamily: 'Arial,sans-serif', background: CUR_BG, borderLeft: CUR_BL, borderRight: CUR_BL, alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[3]?.month}</div>
+          <div style={{ width: 1, background: '#6fcf9722', alignSelf: 'stretch', margin: '0 4px' }} />
+          <div style={{ width: CW.ex, textAlign: 'right', paddingRight: 8, fontSize: 9, color: '#6fcf9966', fontFamily: 'Arial,sans-serif' }}>EXPEC</div>
+        </div>
+      </div>
+      {/* Linhas */}
+      {rows.map(({ label, values, hl }, i) => (
+        <WasdeRow key={label} label={label} values={values} hl={hl}
+          expVal={expec?.[label]} editing={editing}
+          onExpec={onExpec} B={B} rowIdx={i} />
+      ))}
+    </div>
+  );
+}
 
-        {/* Labels das colunas */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 0 }}>
-
-          {/* Grupo HISTÓRICO */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <div style={{
-              fontSize: 8, color: `${B.cardGold}55`, letterSpacing: '0.12em',
-              fontFamily: 'Arial,sans-serif', fontWeight: 600,
-              marginBottom: 3, paddingRight: 2,
-            }}>HISTÓRICO</div>
-            <div style={{ display: 'flex' }}>
-              {[{ w: CW.h0, col: cols[0] }, { w: CW.h1, col: cols[1] }].map(({ w, col }, i) => (
-                <div key={i} style={{ width: w, textAlign: 'right', paddingRight: 6 }}>
-                  <div style={{
-                    fontSize: 9, color: `${B.cardGold}55`,
-                    fontFamily: 'Arial,sans-serif', lineHeight: 1.2,
-                  }}>{col?.safra || ''}</div>
-                  <div style={{
-                    fontSize: 11, color: `${B.cardGold}77`, fontWeight: 700,
-                    fontFamily: 'Arial,sans-serif', letterSpacing: '0.04em',
-                  }}>{col?.month || ''}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Divisor histórico / projeção */}
-          <div style={{
-            width: 1, background: `${B.cardGold}44`,
-            alignSelf: 'stretch', margin: '0 4px',
-          }} />
-
-          {/* Grupo PROJEÇÃO */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <div style={{
-              fontSize: 8, color: `${B.cardGold}99`, letterSpacing: '0.12em',
-              fontFamily: 'Arial,sans-serif', fontWeight: 600,
-              marginBottom: 3, paddingRight: 2,
-            }}>PROJEÇÃO {cols[2]?.safra || ''}</div>
-            <div style={{ display: 'flex' }}>
-              {[{ w: CW.p0, col: cols[2], cur: false }, { w: CW.p1, col: cols[3], cur: true }].map(({ w, col, cur }) => (
-                <div key={cur ? 'cur' : 'prev'} style={{ width: w, textAlign: 'right', paddingRight: 6 }}>
-                  <div style={{
-                    fontSize: 9, color: cur ? `${B.cardGold}99` : `${B.cardGold}55`,
-                    fontFamily: 'Arial,sans-serif', lineHeight: 1.2,
-                  }}>&nbsp;</div>
-                  <div style={{
-                    fontSize: cur ? 13 : 11,
-                    color: cur ? B.cardGold : `${B.cardGold}88`,
-                    fontWeight: 700,
-                    fontFamily: 'Arial,sans-serif', letterSpacing: '0.04em',
-                  }}>{col?.month || ''}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Divisor projeção / EXPEC */}
-          <div style={{
-            width: 1, background: '#6fcf9744',
-            alignSelf: 'stretch', margin: '0 4px',
-          }} />
-
-          {/* EXPEC */}
-          <div style={{ width: CW.ex, textAlign: 'right', paddingRight: 6 }}>
-            <div style={{ fontSize: 9, lineHeight: 1.2 }}>&nbsp;</div>
-            <div style={{
-              fontSize: 11, color: '#6fcf97', fontWeight: 700,
-              fontFamily: 'Arial,sans-serif', letterSpacing: '0.06em',
-            }}>EXPEC</div>
-          </div>
+function WasdeShell({ children, brand, logo, logoFooter, title, reportLabel, cols }) {
+  const B = brand || BRANDS.granara;
+  return (
+    <div style={{
+      background: B.cardBg,
+      border: `2px solid ${B.cardGold}`,
+      borderRadius: 6,
+      overflow: 'hidden',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+      display: 'inline-block',
+      minWidth: CW.label + CW.h0 + CW.h1 + CW.p0 + CW.p1 + CW.ex + 40,
+    }}>
+      {/* Header */}
+      <div style={{
+        background: B.headerGrad,
+        borderBottom: `2px solid ${B.cardGold}66`,
+        padding: '11px 20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <img src={logo || B.logoHeader} alt={B.name}
+          style={{ height: B.logoHeaderH || 44, objectFit: 'contain',
+            filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.4))' }} />
+        <div style={{ fontSize: 10, color: `${B.cardGold}88`, letterSpacing: '0.18em', fontFamily: "'Cinzel',serif" }}>
+          FONTE: USDA · WASDE
         </div>
       </div>
 
-      {/* ── Linhas de dados ── */}
-      {rows.map(({ label, values, hl }, rowIdx) => {
-        const expVal = expec?.[label];
-        const isEven = rowIdx % 2 === 0;
-        return (
-          <div key={label} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: hl ? '7px 12px 7px 14px' : '5px 12px 5px 14px',
-            borderBottom: `1px solid ${hl ? B.cardGold + '22' : 'rgba(255,255,255,0.04)'}`,
-            background: hl
-              ? `${B.cardGold}14`
-              : isEven ? 'rgba(255,255,255,0.02)' : 'transparent',
-          }}>
-            {/* Rótulo da linha — sans-serif para máxima legibilidade */}
-            <div style={{
-              flex: 1,
-              fontSize: hl ? 12 : 11,
-              fontFamily: 'Arial,sans-serif',
-              fontWeight: hl ? 700 : 400,
-              letterSpacing: hl ? '0.07em' : '0.02em',
-              color: hl ? B.cardGold : '#c8d4c8',
-              textTransform: hl ? 'uppercase' : 'none',
-            }}>{label}</div>
-
-            {/* Células de valor */}
-            <div style={{ display: 'flex', alignItems: 'center' }}>
-              {values.map((v, i) => {
-                const w = [CW.h0, CW.h1, CW.p0, CW.p1][i];
-                return (
-                  <div key={i} style={{
-                    width: w, textAlign: 'right', paddingRight: 6,
-                    fontSize: numSize(i, hl),
-                    fontFamily: "'Courier New', monospace",
-                    color: numColor(i, hl),
-                    fontWeight: numBold(i, hl),
-                  }}>
-                    {fmt(v)}
-                  </div>
-                );
-              })}
-
-              {/* Divisor antes de EXPEC */}
-              <div style={{
-                width: 1, background: '#6fcf9733',
-                alignSelf: 'stretch', margin: '0 4px',
-              }} />
-
-              {/* Célula EXPEC */}
-              <div style={{
-                width: CW.ex, textAlign: 'right', paddingRight: 6,
-                background: 'rgba(111,207,151,0.04)',
-              }}>
-                {editing ? (
-                  <input
-                    type="text"
-                    defaultValue={expVal != null ? String(expVal).replace('.', ',') : ''}
-                    onBlur={e => {
-                      const raw = e.target.value.replace(',', '.');
-                      const num = parseFloat(raw);
-                      onExpec && onExpec(label, isNaN(num) ? null : num);
-                    }}
-                    style={{
-                      width: 70, textAlign: 'right',
-                      fontSize: 12,
-                      background: '#6fcf9718',
-                      border: `1px solid #6fcf9766`,
-                      borderRadius: 2, color: '#6fcf97',
-                      fontFamily: "'Courier New', monospace",
-                      padding: '2px 4px', outline: 'none',
-                    }}
-                    placeholder="—"
-                  />
-                ) : (
-                  <div style={{
-                    fontSize: hl ? 14 : 12,
-                    fontFamily: "'Courier New', monospace",
-                    color: expVal != null ? '#6fcf97' : 'rgba(111,207,151,0.2)',
-                    fontWeight: hl ? 700 : 400,
-                  }}>
-                    {expVal != null ? fmt(expVal) : '—'}
-                  </div>
-                )}
-              </div>
-            </div>
+      {/* Commodity strip */}
+      <div style={{
+        ...B.commodityStyle,
+        padding: '13px 20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <div>
+          <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '0.2em', color: '#EFE8D8', fontFamily: "'Cinzel',serif" }}>
+            {title}
           </div>
-        );
-      })}
+          <div style={{ fontSize: 9, color: `${B.cardGold}aa`, letterSpacing: '0.14em', marginTop: 3, fontFamily: "'Cinzel',serif" }}>
+            RELATÓRIO MENSAL USDA · OFERTA E DEMANDA
+          </div>
+        </div>
+        {reportLabel && (
+          <div style={{
+            fontSize: 13, color: B.cardGold, fontWeight: 700,
+            letterSpacing: '0.08em', fontFamily: "'Cinzel',serif",
+            background: `${B.cardGold}18`, border: `1px solid ${B.cardGold}55`,
+            borderRadius: 3, padding: '5px 12px',
+          }}>{reportLabel}</div>
+        )}
+      </div>
+
+      {/* Cabeçalho global de colunas com safra completa */}
+      {cols && <WasdeColHeader cols={cols} B={B} />}
+
+      {/* Seções */}
+      <div>{children}</div>
+
+      {/* Footer */}
+      <div style={{
+        borderTop: `1px solid ${B.cardGold}22`,
+        background: `${B.cardMid}22`,
+        padding: '7px 20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <div style={{ fontSize: 9, color: `${B.cardGold}44`, fontFamily: 'monospace', fontStyle: 'italic' }}>
+          Em milhões de toneladas · *Área em milhões de ha · *Produtividade bu/ha
+        </div>
+        <img src={logoFooter || B.logoFooter} alt={B.name}
+          style={{ height: B.logoFooterH || 36, objectFit: 'contain' }} />
+      </div>
     </div>
   );
 }
@@ -1569,12 +1588,12 @@ function WasdeCard({ data, expec, onExpec, brand, logo, logoFooter, reportLabel,
   if (!data) return null;
   return (
     <WasdeShell brand={B} logo={logo} logoFooter={logoFooter}
-      title={data.title} reportLabel={reportLabel}>
+      title={data.title} reportLabel={reportLabel} cols={data.cols}>
       {data.sections.map(sec => (
         <WasdeSection key={sec.key} title={sec.title} rows={sec.rows}
-          cols={data.cols} expec={expec?.[sec.key]||{}}
-          onExpec={(label,val) => onExpec && onExpec(sec.key, label, val)}
-          brand={B} editing={editing}/>
+          cols={data.cols} expec={expec?.[sec.key] || {}}
+          onExpec={(label, val) => onExpec && onExpec(sec.key, label, val)}
+          brand={B} editing={editing} />
       ))}
     </WasdeShell>
   );
