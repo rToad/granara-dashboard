@@ -983,686 +983,468 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
 
 
 // ── WASDE Parser (browser-side, reads XLS via SheetJS) ───────────────────────
-// Maps page names to commodity sections we care about
-const WASDE_PAGE_MAP = {
-  soyUS:    { page: "Page 15", crop: "SOYBEANS" },
-  soyWorld: { page: "Page 28", crop: "World Soybean" },
-  cornUS:   { page: "Page 12", crop: "CORN" },
-  cornWorld:{ page: "Page 23", crop: "World Corn" },
-  wheatWorld:{ page: "Page 19", crop: "World Wheat" },
-};
-
-// Extract rows from a parsed sheet by XLS xlrd-style structure
-// Returns { headers: [...], rows: [{label, values:[...]}] }
-function parseWASDESheet(rows, startKeyword, colCount) {
-  // rows is array of arrays (from SheetJS aoa_to_sheet)
-  let headerRow = null, dataRows = [], inSection = false;
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i] || [];
-    const first = String(row[0] || "").trim();
-    // Detect header: row containing "2023/24" or similar safra pattern
-    if (!headerRow && row.some(c => /202\d\/\d\d/.test(String(c||"")))) {
-      headerRow = row;
-      inSection = true;
-      continue;
-    }
-    if (!inSection) continue;
-    // Stop at footnotes or empty stretches
-    if (first.startsWith("Note") || first.startsWith("1/") || first.startsWith("Totals")) break;
-    // Skip unit rows
-    if (row.filter(c => c !== null && c !== "").length < 2) continue;
-    const vals = row.slice(1).map(c => c === null || c === "" ? null : Number(c) || c);
-    if (vals.some(v => v !== null)) dataRows.push({ label: first, values: vals });
-  }
-  return { headers: headerRow || [], rows: dataRows };
-}
 
 function parseWASDE(workbook) {
-  // workbook from SheetJS XLSX.read
-  const result = { meta: {}, soyUS:{}, soyWorld:{}, cornUS:{}, cornWorld:{}, wheatWorld:{} };
-
-  // Detect report month from "WASDE Text" sheet or any sheet header
-  const firstSheet = workbook.SheetNames[0];
-  const ws0 = workbook.Sheets[firstSheet];
-  const aoa0 = XLSX.utils.sheet_to_json(ws0, { header:1, defval: null });
-  for (const row of aoa0) {
-    const txt = String(row[0] || "");
-    const m = txt.match(/WASDE\s*-\s*(\d+)/);
-    if (m) result.meta.number = m[1];
-  }
-
-  // Helper to get sheet as AOA
-  const getAOA = (name) => {
-    if (!workbook.Sheets[name]) return [];
-    return XLSX.utils.sheet_to_json(workbook.Sheets[name], { header:1, defval: null });
+  const aoa = (name) => workbook.Sheets[name]
+    ? XLSX.utils.sheet_to_json(workbook.Sheets[name], {header:1, defval:null})
+    : [];
+  const n = (rows, r, c) => {
+    const v = rows?.[r]?.[c];
+    return (v === null || v === '' || v === undefined) ? null : (Number(v) || null);
   };
+  const s = (rows, r, c) => String(rows?.[r]?.[c] || '').trim();
 
-  // ── Page 12: US Corn ─────────────────────────────────────────────────────
-  const p12 = getAOA("Page 12");
-  result.cornUS = extractUSTable(p12, "CORN");
+  // ── Detect months and safras from Page 12 ──────────────────────────────────
+  // r00 = "April 2026", r29 headers: CORN | 2023/24 | 2024/25 Est. | 2025/26 Proj. | 2025/26 Proj.
+  // r30: col3 = "March", col4 = "April"
+  const p12 = aoa('Page 12');
+  const safra0 = s(p12, 29, 1).replace(/ Est\.| Proj\./g, '').trim(); // "2023/24"
+  const safra1 = s(p12, 29, 2).replace(/ Est\.| Proj\./g, '').trim(); // "2024/25"
+  const safra2 = s(p12, 29, 3).replace(/ Est\.| Proj\./g, '').trim(); // "2025/26"
+  const prevMon = s(p12, 30, 3).slice(0,3).toUpperCase(); // "MAR"
+  const curMon  = s(p12, 30, 4).slice(0,3).toUpperCase(); // "APR"→"ABR" handled in display
 
-  // ── Page 15: US Soybeans ─────────────────────────────────────────────────
-  const p15 = getAOA("Page 15");
-  result.soyUS = extractUSTable(p15, "SOYBEANS");
+  // Month abbreviation PT-BR
+  const ptMon = { JAN:'JAN',FEB:'FEV',MAR:'MAR',APR:'ABR',MAY:'MAI',JUN:'JUN',
+                  JUL:'JUL',AUG:'AGO',SEP:'SET',OCT:'OUT',NOV:'NOV',DEC:'DEZ' };
+  const pm = ptMon[prevMon] || prevMon;
+  const cm = ptMon[curMon]  || curMon;
 
-  // ── Page 19: World Wheat 2025/26 ──────────────────────────────────────────
-  const p19 = getAOA("Page 19");
-  result.wheatWorld = extractWorldTable(p19);
+  const cols = [
+    { safra:safra0, month:cm  },
+    { safra:safra1, month:cm  },
+    { safra:safra2, month:pm  },
+    { safra:safra2, month:cm  },
+  ];
 
-  // ── Page 23: World Corn 2025/26 ──────────────────────────────────────────
-  const p23 = getAOA("Page 23");
-  result.cornWorld = extractWorldTable(p23);
+  // ── Page 15: US Soybeans ───────────────────────────────────────────────────
+  // r08 header: SOYBEANS | 2023/24 | 2024/25 Est. | 2025/26 Proj. | 2025/26 Proj.
+  // r09 month row: col3=Mar col4=Apr
+  // data: cols 1=2023/24, 2=2024/25, 3=2025/26 Mar, 4=2025/26 Apr
+  const p15 = aoa('Page 15');
+  const soyUSRows = [
+    { label:'Área Plantada',  values:[n(p15,12,1),n(p15,12,2),n(p15,12,3),n(p15,12,4)], hl:false },
+    { label:'Área Colhida',   values:[n(p15,13,1),n(p15,13,2),n(p15,13,3),n(p15,13,4)], hl:false },
+    { label:'Produtividade',  values:[n(p15,15,1),n(p15,15,2),n(p15,15,3),n(p15,15,4)], hl:false },
+    { label:'PRODUÇÃO',       values:[n(p15,18,1),n(p15,18,2),n(p15,18,3),n(p15,18,4)], hl:true  },
+    { label:'EXPORTAÇÃO',     values:[n(p15,22,1),n(p15,22,2),n(p15,22,3),n(p15,22,4)], hl:true  },
+    { label:'Esmagamento',    values:[n(p15,21,1),n(p15,21,2),n(p15,21,3),n(p15,21,4)], hl:false },
+    { label:'IMPORTAÇÃO',     values:[n(p15,19,1),n(p15,19,2),n(p15,19,3),n(p15,19,4)], hl:false },
+    { label:'ESTOQUE FINAL',  values:[n(p15,26,1),n(p15,26,2),n(p15,26,3),n(p15,26,4)], hl:true  },
+  ];
 
-  // ── Page 28: World Soybean (has 2023/24, 2024/25, 2025/26) ───────────────
-  const p28 = getAOA("Page 28");
-  result.soyWorld = extractSoyWorldTable(p28);
+  // ── Page 28: World Soybeans ────────────────────────────────────────────────
+  // 2023/24 flat block: r08 header, data rows 9-21, cols 2-8 (no Mar/Apr rows)
+  // 2024/25 flat block: r24 header, data rows 25-37
+  // 2025/26 proj block: r40 header, data rows 41+ with Mar/Apr alternating
+  // Col mapping: 2=BegStk, 3=Production, 4=Imports, 5=DomCrush, 6=DomTotal, 7=Exports, 8=EndStk
+  const p28 = aoa('Page 28');
+  // For 2023/24 and 2024/25: single row per entity, col index differs:
+  // r08/r24: col0=year, col2=BegStk, col3=Prod, col4=Imp, col5=DomCrush, col6=DomTotal, col7=Exp, col8=EndStk
+  // Entity row structure: col0=name, col2=BegStk, col3=Prod ...
+  // 2023/24 entities (flat): World r9, Brazil r15, Argentina r14, China r18, EU r19
+  // 2024/25 entities (flat): World r25, Brazil r31, Argentina r30, China r34, EU r35
+  // 2025/26 entities (Mar/Apr): World r41/42, Brazil r53/54, Argentina r51/52, China r59/60, EU r61/62
+  const soyWorldRows = [
+    { label:'MUNDO - PRODUÇÃO',
+      values:[n(p28,9,3), n(p28,25,3), n(p28,41,3), n(p28,42,3)], hl:true },
+    { label:'MUNDO - CONSUMO',
+      values:[n(p28,9,6), n(p28,25,6), n(p28,41,6), n(p28,42,6)], hl:true },
+    { label:'MUNDO - ESTOQUE FINAL',
+      values:[n(p28,9,8), n(p28,25,8), n(p28,41,8), n(p28,42,8)], hl:true },
+    { label:'BRASIL - PRODUÇÃO',
+      values:[n(p28,15,3), n(p28,31,3), n(p28,53,3), n(p28,54,3)], hl:true },
+    { label:'BRASIL - EXPORTAÇÃO',
+      values:[n(p28,15,7), n(p28,31,7), n(p28,53,7), n(p28,54,7)], hl:true },
+    { label:'ARGENTINA - PROD.',
+      values:[n(p28,14,3), n(p28,30,3), n(p28,51,3), n(p28,52,3)], hl:false },
+    { label:'CHINA - IMPORT.',
+      values:[n(p28,18,4), n(p28,34,4), n(p28,59,4), n(p28,60,4)], hl:false },
+    { label:'UE - IMPORTAÇÃO',
+      values:[n(p28,19,4), n(p28,35,4), n(p28,61,4), n(p28,62,4)], hl:false },
+  ];
 
-  // Detect columns (safras + months) from page 12
-  result.meta.columns = detectColumns(p12);
+  // ── Page 12: US Corn ───────────────────────────────────────────────────────
+  // CORN block starts r29 (header), r30 month row, data r32-48
+  // Cols: 1=2023/24, 2=2024/25, 3=2025/26 Mar, 4=2025/26 Apr
+  const cornUSRows = [
+    { label:'Área Plantada',  values:[n(p12,32,1),n(p12,32,2),n(p12,32,3),n(p12,32,4)], hl:false },
+    { label:'Área Colhida',   values:[n(p12,33,1),n(p12,33,2),n(p12,33,3),n(p12,33,4)], hl:false },
+    { label:'Produtividade',  values:[n(p12,35,1),n(p12,35,2),n(p12,35,3),n(p12,35,4)], hl:false },
+    { label:'PRODUÇÃO',       values:[n(p12,38,1),n(p12,38,2),n(p12,38,3),n(p12,38,4)], hl:true  },
+    { label:'EXPORTAÇÃO',     values:[n(p12,45,1),n(p12,45,2),n(p12,45,3),n(p12,45,4)], hl:true  },
+    { label:'ESTOQUE FINAL',  values:[n(p12,47,1),n(p12,47,2),n(p12,47,3),n(p12,47,4)], hl:true  },
+  ];
 
-  return result;
+  // ── Page 22: World Corn 2023/24 and 2024/25 (flat) ────────────────────────
+  // 2023/24: r08 header, data r10+ cols 1-7
+  // 2024/25: r31 header, data r34+ cols 1-7
+  // Col mapping: 1=BegStk, 2=Prod, 3=Imp, 4=DomFeed, 5=DomTotal, 6=Exp, 7=EndStk
+  const p22 = aoa('Page 22');
+  // ── Page 23: World Corn 2025/26 (Mar/Apr alternating) ─────────────────────
+  // r08 header, data r10/11=World Mar/Apr, r22/23=Brazil, r20/21=Argentina,
+  // r47/48=China, r28/29=Ukraine
+  const p23 = aoa('Page 23');
+  const cornWorldRows = [
+    { label:'PRODUÇÃO',
+      values:[n(p22,10,2), n(p22,34,2), n(p23,10,3), n(p23,11,3)], hl:true },
+    { label:'MUNDO - CONSUMO',
+      values:[n(p22,10,5), n(p22,34,5), n(p23,10,6), n(p23,11,6)], hl:true },
+    { label:'MUNDO - ESTOQUE F.',
+      values:[n(p22,10,7), n(p22,34,7), n(p23,10,8), n(p23,11,8)], hl:true },
+    { label:'CHINA - PRODUÇÃO',
+      values:[n(p22,29,2), n(p22,53,2), n(p23,47,3), n(p23,48,3)], hl:false },
+    { label:'CHINA - ESTOQUE F.',
+      values:[n(p22,29,7), n(p22,53,7), n(p23,47,8), n(p23,48,8)], hl:false },
+    { label:'BRASIL - PRODUÇÃO',
+      values:[n(p22,16,2), n(p22,40,2), n(p23,22,3), n(p23,23,3)], hl:true },
+    { label:'BRASIL - EXPORTAÇÃO',
+      values:[n(p22,16,6), n(p22,40,6), n(p23,22,7), n(p23,23,7)], hl:true },
+    { label:'UCRÂNIA - EXPORT.',
+      values:[n(p22,19,6), n(p22,43,6), n(p23,28,7), n(p23,29,7)], hl:false },
+    { label:'ARGENTINA - PROD.',
+      values:[n(p22,15,2), n(p22,39,2), n(p23,20,3), n(p23,21,3)], hl:false },
+    { label:'ARGENTINA - EXPORT.',
+      values:[n(p22,15,6), n(p22,39,6), n(p23,20,7), n(p23,21,7)], hl:false },
+  ];
+
+  // ── Page 18: World Wheat 2023/24 and 2024/25 (flat) ───────────────────────
+  // 2023/24: r08 header, data r09-32, cols 1-7
+  // 2024/25: r33 header, data r34-57
+  // Col mapping: 1=BegStk, 2=Prod, 3=Imp, 4=DomFeed, 5=DomTotal, 6=Exp, 7=EndStk
+  const p18 = aoa('Page 18');
+  // ── Page 19: World Wheat 2025/26 (Mar/Apr alternating) ────────────────────
+  // r10/11=World, r14/15=US, r36/37=Brazil, r20/21=Argentina, r28/29=Russia, r30/31=Ukraine, r26/27=EU
+  const p19 = aoa('Page 19');
+  const wheatWorldRows = [
+    { label:'MUNDO - PRODUÇÃO',
+      values:[n(p18,9,2), n(p18,34,2), n(p19,10,3), n(p19,11,3)], hl:true },
+    { label:'MUNDO - CONSUMO',
+      values:[n(p18,9,5), n(p18,34,5), n(p19,10,6), n(p19,11,6)], hl:true },
+    { label:'MUNDO - ESTOQUE F.',
+      values:[n(p18,9,7), n(p18,34,7), n(p19,10,8), n(p19,11,8)], hl:true },
+    { label:'EUA - PRODUÇÃO',
+      values:[n(p18,11,2), n(p18,36,2), n(p19,14,3), n(p19,15,3)], hl:false },
+    { label:'EUA - EXPORTAÇÃO',
+      values:[n(p18,11,6), n(p18,36,6), n(p19,14,7), n(p19,15,7)], hl:false },
+    { label:'BRASIL - PRODUÇÃO',
+      values:[n(p18,22,2), n(p18,47,2), n(p19,36,3), n(p19,37,3)], hl:false },
+    { label:'BRASIL - IMPORTAÇÃO',
+      values:[n(p18,22,3), n(p18,47,3), n(p19,36,4), n(p19,37,4)], hl:false },
+    { label:'UCRANIA - EXPORT.',
+      values:[n(p18,19,6), n(p18,44,6), n(p19,30,7), n(p19,31,7)], hl:false },
+    { label:'ARGENTINA - EXPORT.',
+      values:[n(p18,14,6), n(p18,39,6), n(p19,20,7), n(p19,21,7)], hl:false },
+    { label:'RUSSIA - EXPORT.',
+      values:[n(p18,18,6), n(p18,43,6), n(p19,28,7), n(p19,29,7)], hl:false },
+    { label:'UE - EXPORTAÇÃO',
+      values:[n(p18,17,6), n(p18,42,6), n(p19,26,7), n(p19,27,7)], hl:false },
+  ];
+
+  return {
+    cols,
+    soja:  { cols, sections:[
+      { key:'soyUS',    title:'ESTADOS UNIDOS', rows:soyUSRows    },
+      { key:'soyWorld', title:'MUNDO',           rows:soyWorldRows },
+    ]},
+    milho: { cols, sections:[
+      { key:'cornUS',    title:'MILHO EUA',   rows:cornUSRows    },
+      { key:'cornWorld', title:'MILHO MUNDO', rows:cornWorldRows },
+    ]},
+    trigo: { cols, sections:[
+      { key:'wheatWorld', title:'TRIGO MUNDO', rows:wheatWorldRows },
+    ]},
+  };
 }
 
-function detectColumns(rows) {
-  // Find the header rows: one with safra years, one with month names
-  let safraRow = null, monthRow = null;
-  for (let i = 0; i < Math.min(20, rows.length); i++) {
-    const r = rows[i] || [];
-    if (r.some(c => /202\d\/\d\d/.test(String(c||"")))) {
-      safraRow = r; monthRow = rows[i+1] || [];
-      break;
-    }
-  }
-  if (!safraRow) return [];
-  // Build column descriptors
-  const cols = [];
-  let lastSafra = "";
-  for (let c = 0; c < safraRow.length; c++) {
-    const s = String(safraRow[c]||"").trim();
-    const m = String(monthRow[c]||"").trim();
-    if (/202\d\/\d\d/.test(s)) lastSafra = s.replace(/\s*(Est\.|Proj\.)\s*/i,"").trim();
-    if (m && m !== "NaN" && lastSafra) cols.push({ safra: lastSafra, month: m, col: c });
-  }
-  return cols;
-}
-
-// Extracts a US supply/use table (cols: 2023/24, 2024/25 Est., 2025/26 Proj. Mar, 2025/26 Proj. Apr)
-function extractUSTable(rows, keyword) {
-  let inSection = false, headers = [], data = {};
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i] || [];
-    const first = String(row[0]||"").trim();
-    if (!inSection && first.toUpperCase().startsWith(keyword.toUpperCase().split(" ")[0])) {
-      inSection = true; continue;
-    }
-    if (!inSection) continue;
-    if (row.some(c => /202\d\/\d\d/.test(String(c||"")))) {
-      headers = row; continue;
-    }
-    if (first.startsWith("Note") || first.startsWith("1/") || first.startsWith("Avg")) break;
-    const nums = row.slice(1).map(c => (c===null||c==="")?null:Number(c)||null);
-    if (nums.some(v=>v!==null)) data[first] = nums;
-  }
-  return { headers, data };
-}
-
-// World tables in pages 19, 23: Mar/Apr rows alternating under each country
-function extractWorldTable(rows) {
-  let headers = [], data = {};
-  let inSection = false;
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i] || [];
-    const first = String(row[0]||"").trim();
-    // Header detection
-    if (!inSection && row.some(c => /202\d\/\d\d/.test(String(c||"")))) {
-      headers = row; inSection = true; continue;
-    }
-    if (!inSection) continue;
-    if (first.startsWith("1/") || first.startsWith("Note")) break;
-    // Mar row
-    const month = String(row[1]||"").trim();
-    if (first && (month === "Mar" || month === "Apr")) {
-      if (!data[first]) data[first] = {};
-      const nums = row.slice(2).map(c => (c===null||c==="")?null:Number(c)||null);
-      data[first][month] = nums;
-    } else if (!first && (month === "Mar" || month === "Apr")) {
-      // continuation of previous label
-      const lastKey = Object.keys(data).pop();
-      if (lastKey) {
-        const nums = row.slice(2).map(c => (c===null||c==="")?null:Number(c)||null);
-        data[lastKey][month] = nums;
-      }
-    }
-  }
-  return { headers, data };
-}
-
-// Soy world (page 28): has 2023/24, 2024/25 Est., and 2025/26 Proj. all in one table
-function extractSoyWorldTable(rows) {
-  // Similar but 3 year blocks; we extract all as a flat lookup
-  const out = { data: {}, years: [] };
-  let curYear = "", inSection = false;
-  let colMap = [];
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i] || [];
-    const first = String(row[0]||"").trim();
-    // Detect year blocks
-    if (/202\d\/\d\d/.test(first) && !row.some(c => String(c||"").length > 20)) {
-      curYear = first.replace(/\s*(Est\.|Proj\.)\s*/i,"").trim();
-      if (!out.years.includes(curYear)) out.years.push(curYear);
-      // Build col map for this block
-      colMap = row.slice(1).map(c => String(c||"").trim());
-      inSection = true; continue;
-    }
-    if (!inSection) continue;
-    if (first.startsWith("1/") || first.startsWith("Note")) { curYear=""; continue; }
-    const nums = row.slice(1).map(c=>(c===null||c==="")?null:Number(c)||null);
-    if (nums.some(v=>v!==null) && first) {
-      if (!out.data[first]) out.data[first] = {};
-      out.data[first][curYear] = nums;
-    }
-  }
-  return out;
-}
-
-// ── WASDE Card Components ─────────────────────────────────────────────────────
-function WasdeCardShell({ children, brand, logo, logoFooter, title, date }) {
+// ── WASDE Card Shell ──────────────────────────────────────────────────────────
+function WasdeShell({ children, brand, logo, logoFooter, title, reportLabel }) {
   const B = brand || BRANDS.granara;
   return (
     <div style={{
-      width: 680, background: B.cardBg,
-      border: `2px solid ${B.cardGold}`,
-      borderRadius: 6, overflow: "hidden",
-      fontFamily: "'Cinzel', serif",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+      width:700, background:B.cardBg, border:`2px solid ${B.cardGold}`,
+      borderRadius:6, overflow:'hidden', fontFamily:"'Cinzel',serif",
+      boxShadow:'0 8px 32px rgba(0,0,0,0.6)',
     }}>
-      {/* Header strip */}
+      {/* Top strip */}
       <div style={{
-        background: B.headerGrad,
-        borderBottom: `1px solid ${B.cardGold}44`,
-        padding: "10px 16px",
-        display: "flex", justifyContent: "space-between", alignItems: "center",
+        background:B.headerGrad, borderBottom:`1px solid ${B.cardGold}33`,
+        padding:'10px 18px', display:'flex', justifyContent:'space-between', alignItems:'center',
       }}>
-        <img src={logo || B.logoHeader} style={{ height: B.logoHeaderH||44, objectFit:"contain",
-          filter:"drop-shadow(0 1px 4px rgba(0,0,0,0.5))"}} alt={B.name} />
-        <div style={{fontSize:9, color:`${B.cardGold}99`, letterSpacing:"0.15em"}}>FONTE: USDA · WASDE</div>
+        <img src={logo||B.logoHeader} alt={B.name}
+          style={{height:B.logoHeaderH||44, objectFit:'contain', filter:'drop-shadow(0 1px 4px rgba(0,0,0,0.5))'}}/>
+        <div style={{fontSize:9, color:`${B.cardGold}99`, letterSpacing:'0.14em'}}>FONTE: USDA · WASDE</div>
       </div>
-      {/* Commodity header */}
-      <div style={{
-        ...B.commodityStyle,
-        padding:"12px 16px",
-        display:"flex", justifyContent:"space-between", alignItems:"center",
-      }}>
+      {/* Commodity strip */}
+      <div style={{...B.commodityStyle, padding:'12px 18px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div>
-          <div style={{fontSize:22, fontWeight:"bold", letterSpacing:"0.2em", color:"#EFE8D8"}}>{title}</div>
-          <div style={{fontSize:10, color:B.cardGold, letterSpacing:"0.12em"}}>RELATÓRIO MENSAL USDA · OFERTA E DEMANDA</div>
+          <div style={{fontSize:24, fontWeight:'bold', letterSpacing:'0.2em', color:'#EFE8D8'}}>{title}</div>
+          <div style={{fontSize:9, color:B.cardGold, letterSpacing:'0.12em', marginTop:2}}>
+            RELATÓRIO MENSAL USDA · OFERTA E DEMANDA
+          </div>
         </div>
-        <div style={{textAlign:"right"}}>
-          <div style={{fontSize:9, color:`${B.cardGold}88`, letterSpacing:"0.1em"}}>WASDE · ABR 2026</div>
-          {date && <div style={{fontSize:12, color:B.cardGold, fontWeight:"bold"}}>{date}</div>}
-        </div>
+        {reportLabel && (
+          <div style={{textAlign:'right', fontSize:11, color:B.cardGold, fontWeight:'bold', letterSpacing:'0.08em'}}>
+            {reportLabel}
+          </div>
+        )}
       </div>
       {/* Body */}
-      <div style={{padding:"12px 16px"}}>
-        {children}
-      </div>
+      <div style={{padding:'14px 18px 10px'}}>{children}</div>
       {/* Footer */}
       <div style={{
-        borderTop:`1px solid ${B.cardGold}22`,
-        background:`${B.cardMid}33`,
-        padding:"8px 16px",
-        display:"flex", justifyContent:"space-between", alignItems:"center",
+        borderTop:`1px solid ${B.cardGold}22`, background:`${B.cardMid}22`,
+        padding:'8px 18px', display:'flex', justifyContent:'space-between', alignItems:'center',
       }}>
-        <div style={{fontSize:9, color:`${B.cardGold}88`, fontFamily:"monospace", fontStyle:"italic"}}>
-          {B.footerUrl}
+        <div style={{fontSize:9, color:`${B.cardGold}66`, fontFamily:'monospace', fontStyle:'italic'}}>
+          Em milhões de toneladas · *Área em milhões de ha · *Produtividade bu/ha
         </div>
-        <img src={logoFooter || B.logoFooter} style={{height: B.logoFooterH||36, objectFit:"contain"}} alt={B.name}/>
+        <img src={logoFooter||B.logoFooter} alt={B.name} style={{height:B.logoFooterH||36, objectFit:'contain'}}/>
       </div>
     </div>
   );
 }
 
-// A single supply/use section inside a WASDE card
-function WasdeSection({ title, rows, cols, expec, onExpec, brand, highlight=[] }) {
+// ── WASDE Section (table inside card) ────────────────────────────────────────
+function WasdeSection({ title, rows, cols, expec, onExpec, brand, editing }) {
   const B = brand || BRANDS.granara;
-  const fmtN = v => v==null ? "—" : Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const fmt = v => v==null ? '—' : Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
   return (
-    <div style={{marginBottom:14}}>
-      {/* Section header */}
+    <div style={{marginBottom:12}}>
+      {/* Section header with column labels */}
       <div style={{
         background:`linear-gradient(90deg,${B.cardMid},${B.cardBg})`,
         borderLeft:`3px solid ${B.cardGold}`,
-        padding:"5px 10px", marginBottom:6,
-        display:"flex", justifyContent:"space-between", alignItems:"center",
+        padding:'5px 10px 3px', marginBottom:0,
+        display:'flex', justifyContent:'space-between', alignItems:'flex-end',
       }}>
-        <div style={{fontSize:10, color:B.cardGold, fontWeight:"bold", letterSpacing:"0.15em"}}>{title}</div>
-        <div style={{display:"flex", gap:6, alignItems:"center"}}>
+        <div style={{fontSize:10, color:B.cardGold, fontWeight:'bold', letterSpacing:'0.14em', minWidth:160}}>
+          {title}
+        </div>
+        <div style={{display:'flex', alignItems:'flex-end', gap:0}}>
           {cols.map((col,i) => (
-            <div key={i} style={{
-              minWidth:60, textAlign:"right",
-              fontSize:8, color:`${B.cardGold}88`, letterSpacing:"0.08em",
-            }}>
-              <div style={{color:`${B.cardGold}66`}}>{col.safra}</div>
-              <div style={{color:B.cardGold, fontWeight:"bold"}}>{col.month}</div>
+            <div key={i} style={{width:74, textAlign:'right', paddingRight:4}}>
+              <div style={{fontSize:7, color:`${B.cardGold}66`, letterSpacing:'0.06em', lineHeight:1.2}}>{col.safra}</div>
+              <div style={{fontSize:8, color:B.cardGold, fontWeight:'bold', letterSpacing:'0.08em'}}>{col.month}</div>
             </div>
           ))}
-          <div style={{minWidth:58, textAlign:"right", fontSize:8, color:"#6fcf97aa", letterSpacing:"0.08em"}}>
-            <div style={{color:"#6fcf9766"}}>EXPEC</div>
-            <div style={{color:"#6fcf97", fontWeight:"bold"}}>{cols[cols.length-1]?.safra?.split("/")[1]||"—"}</div>
+          <div style={{width:68, textAlign:'right', paddingRight:4}}>
+            <div style={{fontSize:7, color:'#6fcf9766', letterSpacing:'0.06em', lineHeight:1.2}}>{cols[3]?.safra||'—'}</div>
+            <div style={{fontSize:8, color:'#6fcf97', fontWeight:'bold', letterSpacing:'0.08em'}}>EXPEC</div>
           </div>
         </div>
       </div>
+
       {/* Data rows */}
-      {rows.map(({label, values, isHighlight}) => (
-        <div key={label} style={{
-          display:"flex", justifyContent:"space-between", alignItems:"center",
-          padding:"3px 10px",
-          borderBottom:`1px solid ${B.cardGold}0a`,
-          background: isHighlight ? `${B.cardGold}0d` : "transparent",
-        }}>
-          <div style={{
-            fontSize:11, letterSpacing:"0.05em",
-            color: isHighlight ? B.cardGold : "#b8c8b8",
-            fontWeight: isHighlight ? "bold" : "normal",
-            flex:1,
-          }}>{label}</div>
-          <div style={{display:"flex", gap:6, alignItems:"center"}}>
-            {values.map((v,i) => (
-              <div key={i} style={{
-                minWidth:60, textAlign:"right",
-                fontSize: isHighlight ? 13 : 12,
-                fontFamily:"'Courier New',monospace",
-                color: isHighlight ? "#ffffff" : "#cccccc",
-                fontWeight: isHighlight ? "bold" : "normal",
-              }}>{fmtN(v)}</div>
-            ))}
-            {/* Expectativa cell */}
-            <div style={{minWidth:58, textAlign:"right"}}>
-              {expec && expec[label] !== undefined ? (
-                <div style={{fontSize:12, fontFamily:"monospace", color:"#6fcf97", fontWeight:"bold"}}>
-                  {fmtN(expec[label])}
-                </div>
-              ) : <div style={{fontSize:12,color:"#ffffff22"}}>—</div>}
+      {rows.map(({label, values, hl}) => {
+        const expVal = expec?.[label];
+        return (
+          <div key={label} style={{
+            display:'flex', justifyContent:'space-between', alignItems:'center',
+            padding:'3px 10px 3px 13px',
+            borderBottom:`1px solid ${B.cardGold}09`,
+            background: hl ? `${B.cardGold}0c` : 'transparent',
+          }}>
+            <div style={{
+              flex:1, fontSize:11, letterSpacing:'0.04em',
+              color: hl ? B.cardGold : '#b8c8b8',
+              fontWeight: hl ? 'bold' : 'normal',
+            }}>{label}</div>
+            <div style={{display:'flex', alignItems:'center', gap:0}}>
+              {values.map((v,i) => (
+                <div key={i} style={{
+                  width:74, textAlign:'right', paddingRight:4,
+                  fontSize: hl ? 13 : 12,
+                  fontFamily:"'Courier New',monospace",
+                  color: hl ? '#ffffff' : '#cccccc',
+                  fontWeight: hl ? 'bold' : 'normal',
+                }}>{fmt(v)}</div>
+              ))}
+              {/* Expectativa — editable input */}
+              <div style={{width:68, textAlign:'right', paddingRight:4}}>
+                {editing ? (
+                  <input
+                    type="text"
+                    defaultValue={expVal != null ? String(expVal).replace('.',',') : ''}
+                    onBlur={e => {
+                      const raw = e.target.value.replace(',','.');
+                      const num = parseFloat(raw);
+                      onExpec && onExpec(label, isNaN(num) ? null : num);
+                    }}
+                    style={{
+                      width:64, textAlign:'right', fontSize:11,
+                      background:`${B.cardGold}18`, border:`1px solid ${B.cardGold}55`,
+                      borderRadius:2, color:'#6fcf97', fontFamily:'monospace',
+                      padding:'1px 3px', outline:'none',
+                    }}
+                    placeholder='—'
+                  />
+                ) : (
+                  <div style={{
+                    fontSize: hl ? 13 : 12, fontFamily:"'Courier New',monospace",
+                    color:'#6fcf97', fontWeight: hl ? 'bold' : 'normal',
+                  }}>{expVal != null ? fmt(expVal) : '—'}</div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-// Full WASDE card for one commodity
-function WasdeCard({ commodity, wasdeData, expec, onExpec, brand, logo, logoFooter }) {
+// ── WASDE Card (full commodity) ───────────────────────────────────────────────
+function WasdeCard({ data, expec, onExpec, brand, logo, logoFooter, reportLabel, editing }) {
   const B = brand || BRANDS.granara;
-  if (!wasdeData) return null;
-
-  // Build column descriptors from data
-  const cols = wasdeData.cols || [];
-  const sections = wasdeData.sections || [];
-
+  if (!data) return null;
   return (
-    <WasdeCardShell brand={B} logo={logo} logoFooter={logoFooter} title={commodity}>
-      {sections.map((sec, si) => (
-        <WasdeSection
-          key={si}
-          title={sec.title}
-          rows={sec.rows}
-          cols={cols}
-          expec={expec?.[sec.key] || {}}
-          onExpec={(label, val) => onExpec && onExpec(sec.key, label, val)}
-          brand={B}
-        />
+    <WasdeShell brand={B} logo={logo} logoFooter={logoFooter}
+      title={data.title} reportLabel={reportLabel}>
+      {data.sections.map(sec => (
+        <WasdeSection key={sec.key} title={sec.title} rows={sec.rows}
+          cols={data.cols} expec={expec?.[sec.key]||{}}
+          onExpec={(label,val) => onExpec && onExpec(sec.key, label, val)}
+          brand={B} editing={editing}/>
       ))}
-      <div style={{fontSize:8, color:`${B.cardGold}55`, marginTop:6, fontStyle:"italic", fontFamily:"monospace"}}>
-        Em milhões de toneladas · *Área em milhões de ha · *Produtividade em sacas/ha
-      </div>
-    </WasdeCardShell>
+    </WasdeShell>
   );
 }
 
-// ── Transform parsed WASDE into display structure ─────────────────────────────
-function buildWasdeDisplay(parsed) {
-  if (!parsed) return null;
-
-  // Columns: detect from cornUS headers
-  const cols = parsed.meta?.columns || [];
-
-  // Helper: get value from US table data by row label, column index
-  const usVal = (tableData, label, colIdx) => {
-    const vals = tableData?.data?.[label];
-    if (!vals) return null;
-    return vals[colIdx] ?? null;
-  };
-
-  // Helper: get world value from world table (Mar or Apr)
-  const worldVal = (tableData, label, month) => {
-    return tableData?.data?.[label]?.[month] ?? null;
-  };
-
-  // Build col list for display: take last 3 data cols (23/24, 24/25 Est, 25/26 Proj) + Mar + Apr
-  // We'll use cols array to map: find 2023/24, 2024/25, 2025/26 Mar, 2025/26 Apr
-  const displayCols = [];
-  const seen = {};
-  for (const c of cols) {
-    const key = `${c.safra} ${c.month}`;
-    if (!seen[key]) { seen[key]=1; displayCols.push(c); }
-  }
-  // Take last 4 (skip very old safras)
-  const lastCols = displayCols.slice(-4);
-
-  // US data index mapping: in the XLS, data cols 0,1,2,3 map to 2023/24, 2024/25, 2025/26 Mar, 2025/26 Apr
-  // We'll show the same 4 cols
-  const dataIdxs = [0,1,2,3];
-
-  // ── SOJA ──────────────────────────────────────────────────────────────────
-  const soyUSRows = [
-    { label:"Área",          isHighlight:false },
-    { label:"Área Colhida",  isHighlight:false },
-    { label:"Produtividade", isHighlight:false },
-    { label:"PRODUÇÃO",      isHighlight:true  },
-    { label:"EXPORTAÇÃO",    isHighlight:true  },
-    { label:"Esmagamento",   isHighlight:false },
-    { label:"IMPORTAÇÃO",    isHighlight:false },
-    { label:"ESTOQUE FINAL", isHighlight:true  },
-  ].map(r => {
-    // Map our PT labels to XLS English labels
-    const EN = {
-      "Área":"Area Planted","Área Colhida":"Area Harvested",
-      "Produtividade":"Yield per Harvested Acre",
-      "PRODUÇÃO":"Production","EXPORTAÇÃO":"Exports","Esmagamento":"Crushings",
-      "IMPORTAÇÃO":"Imports","ESTOQUE FINAL":"Ending Stocks",
-    };
-    const vals = dataIdxs.map(i => usVal(parsed.soyUS, EN[r.label]||r.label, i));
-    return { label: r.label, values: vals, isHighlight: r.isHighlight };
-  });
-
-  const soyWorldRows_EUA = [
-    { label:"PRODUÇÃO", key:"Production", isHighlight:true },
-    { label:"EXPORTAÇÃO", key:"Exports", isHighlight:true },
-    { label:"IMPORTAÇÃO", key:"Imports", isHighlight:false },
-    { label:"ESTOQUE FINAL", key:"Ending Stocks", isHighlight:true },
-  ];
-
-  // For world tables with Mar/Apr, we show 2023/24 (flat), 2024/25 Est (flat), 2025/26 Mar, 2025/26 Apr
-  const soyWorldCountries = [
-    { label:"MUNDO - PRODUÇÃO",    en:"World  2/" },
-    { label:"MUNDO - CONSUMO",     en:"World  2/", field:"Domestic\\nTotal" },
-    { label:"MUNDO - ESTOQUE FINAL", en:"World  2/", field:"Ending\\nStocks" },
-    { label:"BRASIL - PRODUÇÃO",   en:"Brazil" },
-    { label:"BRASIL - EXPORTAÇÃO", en:"Brazil", field:"Exports" },
-    { label:"ARGENTINA - PROD.",   en:"Argentina" },
-    { label:"CHINA - IMPORT.",     en:"China" },
-    { label:"UE - IMPORTAÇÃO",     en:"European Union" },
-  ];
-
-  // For soy world: data is keyed by year in soyWorld.data
-  // Build simplified rows
-  const soyWorldRows = soyWorldCountries.map(c => {
-    const vals = [null,null,null,null]; // 4 cols
-    return { label:c.label, values:vals, isHighlight: c.label.includes("MUNDO") || c.label.startsWith("BRASIL") };
-  });
-
-  // Try to fill soyWorld from parsed
-  if (parsed.soyWorld?.data) {
-    const d = parsed.soyWorld.data;
-    // Year keys
-    const years = parsed.soyWorld.years || [];
-    // Map: Production col idx in soyWorld.data[entity][year]
-    // Cols in page 28: Beginning Stocks, Production, Imports, Domestic Crush, Domestic Total, Exports, Ending Stocks
-    const COL = { prod:1, imports:2, domTotal:4, exports:5, endStk:6 };
-    const getY = (entity, year, col) => {
-      const arr = d[entity]?.[year];
-      return arr?.[col] ?? null;
-    };
-    const MAP = {
-      "MUNDO - PRODUÇÃO":   { en:"World  2/",  col:COL.prod },
-      "MUNDO - CONSUMO":    { en:"World  2/",  col:COL.domTotal },
-      "MUNDO - ESTOQUE FINAL":{ en:"World  2/",col:COL.endStk },
-      "BRASIL - PRODUÇÃO":  { en:"Brazil",     col:COL.prod },
-      "BRASIL - EXPORTAÇÃO":{ en:"Brazil",     col:COL.exports },
-      "ARGENTINA - PROD.":  { en:"Argentina",  col:COL.prod },
-      "CHINA - IMPORT.":    { en:"China",      col:COL.imports },
-      "UE - IMPORTAÇÃO":    { en:"European Union", col:COL.imports },
-    };
-    soyWorldRows.forEach(row => {
-      const m = MAP[row.label];
-      if (!m) return;
-      const y0 = years[0]||"", y1 = years[1]||"", y2 = years[2]||"";
-      row.values[0] = getY(m.en, y0, m.col);
-      row.values[1] = getY(m.en, y1, m.col);
-      row.values[2] = getY(m.en, y2, m.col); // same year but Mar (only one value)
-      row.values[3] = getY(m.en, y2, m.col); // Apr same
-    });
-  }
-
-  // ── MILHO ─────────────────────────────────────────────────────────────────
-  const cornUSLabels = [
-    { label:"Área Plantada",  en:"Area Planted",            isHighlight:false },
-    { label:"Área Colhida",   en:"Area Harvested",          isHighlight:false },
-    { label:"Produtividade",  en:"Yield per Harvested Acre",isHighlight:false },
-    { label:"PRODUÇÃO",       en:"Production",              isHighlight:true  },
-    { label:"EXPORTAÇÃO",     en:"Exports",                 isHighlight:true  },
-    { label:"ESTOQUE FINAL",  en:"Ending Stocks",           isHighlight:true  },
-  ];
-  const cornUSRows = cornUSLabels.map(r => ({
-    label:r.label,
-    values: dataIdxs.map(i => usVal(parsed.cornUS, r.en, i)),
-    isHighlight: r.isHighlight,
-  }));
-
-  const WORLD_COL_CORN = { prod:1, imports:2, feed:3, total:4, exports:5, endStk:6 };
-  const cornWorldMap = [
-    { label:"PRODUÇÃO",          en:"World  3/",  col:WORLD_COL_CORN.prod },
-    { label:"MUNDO - CONSUMO",   en:"World  3/",  col:WORLD_COL_CORN.total },
-    { label:"MUNDO - ESTOQUE F.",en:"World  3/",  col:WORLD_COL_CORN.endStk },
-    { label:"CHINA - PRODUÇÃO",  en:"China",      col:WORLD_COL_CORN.prod },
-    { label:"CHINA - ESTOQUE F.",en:"China",      col:WORLD_COL_CORN.endStk },
-    { label:"BRASIL - PRODUÇÃO", en:"Brazil",     col:WORLD_COL_CORN.prod },
-    { label:"BRASIL - EXPORTAÇÃO",en:"Brazil",    col:WORLD_COL_CORN.exports },
-    { label:"UCRÂNIA - EXPORT.", en:"Ukraine",    col:WORLD_COL_CORN.exports },
-    { label:"ARGENTINA - PROD.", en:"Argentina",  col:WORLD_COL_CORN.prod },
-    { label:"ARGENTINA - EXPORT.",en:"Argentina", col:WORLD_COL_CORN.exports },
-  ];
-  const cornWorldRows = cornWorldMap.map(m => {
-    const d = parsed.cornWorld?.data || {};
-    const isHL = m.label.startsWith("PRODUÇÃO")||m.label.includes("CONSUMO")||m.label.includes("ESTOQUE F.")&&!m.label.includes("CHINA");
-    const marVals = d[m.en]?.["Mar"] || [];
-    const aprVals = d[m.en]?.["Apr"] || [];
-    // We'll show: [some older val, some previous, Mar, Apr]
-    return {
-      label: m.label,
-      values: [null, null, marVals[m.col-2]??null, aprVals[m.col-2]??null],
-      isHighlight: isHL,
-    };
-  });
-
-  // ── TRIGO ─────────────────────────────────────────────────────────────────
-  const wheatWorldColMap = { prod:1, imports:2, feed:3, total:4, exports:5, endStk:6 };
-  const wheatWorldMap = [
-    { label:"MUNDO - PRODUÇÃO",    en:"World  3/",  col:wheatWorldColMap.prod },
-    { label:"MUNDO - CONSUMO",     en:"World  3/",  col:wheatWorldColMap.total },
-    { label:"MUNDO - ESTOQUE F.",  en:"World  3/",  col:wheatWorldColMap.endStk },
-    { label:"EUA - PRODUÇÃO",      en:"United States", col:wheatWorldColMap.prod },
-    { label:"EUA - EXPORTAÇÃO",    en:"United States", col:wheatWorldColMap.exports },
-    { label:"BRASIL - PRODUÇÃO",   en:"Brazil",     col:wheatWorldColMap.prod },
-    { label:"BRASIL - IMPORTAÇÃO", en:"Brazil",     col:wheatWorldColMap.imports },
-    { label:"UCRANIA - EXPORT.",   en:"Ukraine",    col:wheatWorldColMap.exports },
-    { label:"ARGENTINA - EXPORT.", en:"Argentina",  col:wheatWorldColMap.exports },
-    { label:"RUSSIA - EXPORT.",    en:"Russia",     col:wheatWorldColMap.exports },
-    { label:"UE - EXPORTAÇÃO",     en:"European Union  5/", col:wheatWorldColMap.exports },
-  ];
-  const wheatWorldRows = wheatWorldMap.map(m => {
-    const d = parsed.wheatWorld?.data || {};
-    const isHL = m.label.startsWith("MUNDO");
-    const marVals = d[m.en]?.["Mar"] || [];
-    const aprVals = d[m.en]?.["Apr"] || [];
-    return {
-      label: m.label,
-      values: [null, null, marVals[m.col-2]??null, aprVals[m.col-2]??null],
-      isHighlight: isHL,
-    };
-  });
-
-  return {
-    cols: lastCols.length ? lastCols : [
-      {safra:"2023/24",month:"MAR"},{safra:"2024/25",month:"ABR"},
-      {safra:"2025/26",month:"MAR"},{safra:"2025/26",month:"ABR"},
-    ],
-    soja: {
-      cols: lastCols,
-      sections: [
-        { key:"soyUS",    title:"ESTADOS UNIDOS", rows: soyUSRows },
-        { key:"soyWorld", title:"MUNDO",           rows: soyWorldRows },
-      ],
-    },
-    milho: {
-      cols: lastCols,
-      sections: [
-        { key:"cornUS",    title:"MILHO EUA",   rows: cornUSRows },
-        { key:"cornWorld", title:"MILHO MUNDO", rows: cornWorldRows },
-      ],
-    },
-    trigo: {
-      cols: lastCols,
-      sections: [
-        { key:"wheatWorld", title:"TRIGO MUNDO", rows: wheatWorldRows },
-      ],
-    },
-  };
-}
-
-// ── WASDE Tab Component ───────────────────────────────────────────────────────
+// ── WASDE Tab ─────────────────────────────────────────────────────────────────
 function WasdeTab({ brand }) {
   const B = brand || BRANDS.granara;
-  const cardLogo = B.logoHeader;
-  const cardLogoFooter = B.logoFooter;
+  const logo       = B.logoHeader;
+  const logoFooter = B.logoFooter;
 
-  const [rawParsed, setRawParsed] = useState(null);
-  const [display, setDisplay]     = useState(null);
-  const [status, setStatus]       = useState("");
-  const [expec, setExpec]         = useState({ soyUS:{}, soyWorld:{}, cornUS:{}, cornWorld:{}, wheatWorld:{} });
+  const [parsed,   setParsed]  = useState(null);
+  const [status,   setStatus]  = useState('');
+  const [editing,  setEditing] = useState(false);
+  const [expec,    setExpec]   = useState({
+    soyUS:{}, soyWorld:{}, cornUS:{}, cornWorld:{}, wheatWorld:{}
+  });
   const [dl, setDl] = useState({});
-
   const fileRef = useRef(null);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setStatus("Processando...");
+    setStatus('Processando...');
     const reader = new FileReader();
     reader.onload = (ev) => {
       try {
         const data = new Uint8Array(ev.target.result);
-        const wb = XLSX.read(data, { type:"array" });
-        const parsed = parseWASDE(wb);
-        setRawParsed(parsed);
-        const disp = buildWasdeDisplay(parsed);
-        setDisplay(disp);
-        setStatus(`✓ WASDE carregado · ${wb.SheetNames.length} páginas`);
+        const wb   = XLSX.read(data, {type:'array'});
+        const p    = parseWASDE(wb);
+        setParsed(p);
+        setStatus(`✓ WASDE carregado`);
       } catch(err) {
         setStatus(`✗ Erro: ${err.message}`);
+        console.error(err);
       }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  const setE = (section, label, val) => {
-    const num = val === "" ? undefined : parseFloat(val.replace(",","."));
-    setExpec(p => ({ ...p, [section]: { ...p[section], [label]: isNaN(num)?undefined:num } }));
-  };
+  const setE = (sec, label, val) =>
+    setExpec(prev => ({...prev, [sec]:{...prev[sec], [label]:val}}));
 
   async function handleDL(id, filename) {
-    setDl(p=>({...p,[id]:true}));
-    try { await downloadCardPNG(id, filename); }
-    catch(e) { alert("Erro ao gerar PNG: " + e.message); }
-    finally { setDl(p=>({...p,[id]:false})); }
+    setEditing(false);
+    setTimeout(async () => {
+      setDl(p=>({...p,[id]:true}));
+      try { await downloadCardPNG(id, filename); }
+      catch(e) { alert('Erro ao gerar PNG: '+e.message); }
+      finally { setDl(p=>({...p,[id]:false})); }
+    }, 100);
   }
 
-  const DLSection = ({id, title, filename, children}) => (
+  const reportLabel = parsed ? `WASDE · ${parsed.cols?.[3]?.month||''} ${parsed.cols?.[3]?.safra?.split('/')[1]||''}` : '';
+
+  const Section = ({id, title, filename, cardData}) => (
     <div style={{marginBottom:40}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-        <div style={{fontSize:12,color:B.cardGold,fontFamily:"'Cinzel',serif",letterSpacing:"0.18em"}}>{title}</div>
-        <button onClick={()=>handleDL(id,filename)} disabled={dl[id]} style={{
-          background:dl[id]?"transparent":B.cardGold,
-          border:`1px solid ${B.cardGoldDim}`,borderRadius:2,
-          color:dl[id]?B.cardGold:"#002621",
-          fontFamily:"'Cinzel',serif",fontSize:9,letterSpacing:"0.12em",
-          padding:"6px 14px",cursor:dl[id]?"wait":"pointer",fontWeight:"bold",
-        }}>{dl[id]?"⏳ GERANDO...":"⬇ BAIXAR PNG"}</button>
+      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12}}>
+        <div style={{fontSize:12, color:G.gold, fontFamily:"'Cinzel',serif", letterSpacing:'0.18em'}}>{title}</div>
+        <div style={{display:'flex', gap:8}}>
+          <button onClick={()=>setEditing(e=>!e)} style={{
+            background:'transparent', border:`1px solid ${G.goldDark}`, borderRadius:2,
+            color:editing?G.gold:G.cream+'88',
+            fontFamily:"'Cinzel',serif", fontSize:9, letterSpacing:'0.1em',
+            padding:'6px 12px', cursor:'pointer',
+          }}>{editing ? '✓ FECHAR EDIÇÃO' : '✎ EDITAR EXPEC'}</button>
+          <button onClick={()=>handleDL(id,filename)} disabled={dl[id]} style={{
+            background:dl[id]?'transparent':G.gold,
+            border:`1px solid ${G.goldDark}`, borderRadius:2,
+            color:dl[id]?G.gold:G.darkGreen,
+            fontFamily:"'Cinzel',serif", fontSize:9, letterSpacing:'0.12em',
+            padding:'6px 14px', cursor:dl[id]?'wait':'pointer', fontWeight:'bold',
+          }}>{dl[id]?'⏳ GERANDO...':'⬇ BAIXAR PNG'}</button>
+        </div>
       </div>
-      <div id={id} style={{display:"inline-block"}}>{children}</div>
+      <div id={id} style={{display:'inline-block'}}>
+        <WasdeCard data={{...cardData, title:cardData?.commodity}}
+          expec={expec} onExpec={setE}
+          brand={B} logo={logo} logoFooter={logoFooter}
+          reportLabel={reportLabel} editing={editing}/>
+      </div>
     </div>
   );
-
-  // Cols for display
-  const cols = display?.cols || [
-    {safra:"2023/24",month:"MAR"},{safra:"2024/25",month:"ABR"},
-    {safra:"2025/26",month:"MAR"},{safra:"2025/26",month:"ABR"},
-  ];
 
   return (
     <div>
       {/* Upload bar */}
-      <div style={{display:"flex",gap:14,alignItems:"flex-end",marginBottom:24,flexWrap:"wrap"}}>
+      <div style={{display:'flex', gap:14, alignItems:'center', marginBottom:24, flexWrap:'wrap'}}>
         <div>
-          <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.1em",marginBottom:4}}>
+          <div style={{fontSize:9, color:G.gold, fontFamily:"'Cinzel',serif", letterSpacing:'0.1em', marginBottom:4}}>
             ARQUIVO WASDE (.XLS)
           </div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <div style={{display:'flex', gap:10, alignItems:'center'}}>
             <button onClick={()=>fileRef.current?.click()} style={{
-              background:G.gold,border:"none",borderRadius:2,color:G.darkGreen,
-              fontFamily:"'Cinzel',serif",fontSize:10,letterSpacing:"0.12em",
-              padding:"8px 16px",cursor:"pointer",fontWeight:"bold",
+              background:G.gold, border:'none', borderRadius:2, color:G.darkGreen,
+              fontFamily:"'Cinzel',serif", fontSize:10, letterSpacing:'0.12em',
+              padding:'8px 18px', cursor:'pointer', fontWeight:'bold',
             }}>⬆ CARREGAR WASDE</button>
-            <input ref={fileRef} type="file" accept=".xls,.xlsx" onChange={handleFile} style={{display:"none"}}/>
+            <input ref={fileRef} type="file" accept=".xls,.xlsx" onChange={handleFile} style={{display:'none'}}/>
             {status && (
-              <div style={{fontSize:10,fontFamily:"monospace",
-                color:status.startsWith("✓")?"#6fcf97":status.startsWith("✗")?"#eb5757":G.cream+"88"}}>
+              <div style={{fontSize:10, fontFamily:'monospace',
+                color:status.startsWith('✓')?'#6fcf97':status.startsWith('✗')?'#eb5757':G.cream+'88'}}>
                 {status}
               </div>
             )}
           </div>
         </div>
+        {parsed && (
+          <div style={{
+            background:`${G.midGreen}44`, border:`1px solid ${G.goldDark}`,
+            borderRadius:4, padding:'8px 14px', display:'flex', gap:16, alignItems:'center',
+          }}>
+            <div style={{fontSize:9, color:G.gold, fontFamily:"'Cinzel',serif", letterSpacing:'0.1em'}}>COLUNAS:</div>
+            {parsed.cols.map((c,i)=>(
+              <div key={i} style={{fontSize:10, fontFamily:'monospace', color:G.cream}}>
+                <span style={{color:G.goldDark}}>{c.safra}</span>{' '}
+                <span style={{color:G.gold, fontWeight:'bold'}}>{c.month}</span>
+              </div>
+            ))}
+            <div style={{fontSize:10, fontFamily:'monospace', color:'#6fcf97'}}>EXPEC</div>
+          </div>
+        )}
       </div>
 
-      {/* Column headers explanation */}
-      {display && (
-        <div style={{
-          background:`${G.midGreen}44`,border:`1px solid ${G.goldDark}`,
-          borderRadius:4,padding:"10px 16px",marginBottom:20,
-          display:"flex",gap:24,flexWrap:"wrap",alignItems:"center",
-        }}>
-          <div style={{fontSize:9,color:G.gold,fontFamily:"'Cinzel',serif",letterSpacing:"0.12em"}}>COLUNAS DETECTADAS:</div>
-          {cols.map((c,i)=>(
-            <div key={i} style={{fontSize:10,fontFamily:"monospace",color:G.cream}}>
-              <span style={{color:G.goldDark}}>{c.safra}</span> <span style={{color:G.gold,fontWeight:"bold"}}>{c.month}</span>
-            </div>
-          ))}
-          <div style={{fontSize:10,fontFamily:"monospace",color:"#6fcf97"}}>EXPEC (manual)</div>
-        </div>
-      )}
-
-      {/* Cards */}
-      {display ? (
+      {parsed ? (
         <>
-          <DLSection id="wasde-soja" title="SOJA · OFERTA E DEMANDA" filename="wasde-soja.png">
-            <WasdeCard commodity="SOJA" wasdeData={display.soja}
-              expec={expec} onExpec={setE} brand={B} logo={cardLogo} logoFooter={cardLogoFooter}/>
-          </DLSection>
-          <DLSection id="wasde-milho" title="MILHO · OFERTA E DEMANDA" filename="wasde-milho.png">
-            <WasdeCard commodity="MILHO" wasdeData={display.milho}
-              expec={expec} onExpec={setE} brand={B} logo={cardLogo} logoFooter={cardLogoFooter}/>
-          </DLSection>
-          <DLSection id="wasde-trigo" title="TRIGO · OFERTA E DEMANDA" filename="wasde-trigo.png">
-            <WasdeCard commodity="TRIGO" wasdeData={display.trigo}
-              expec={expec} onExpec={setE} brand={B} logo={cardLogo} logoFooter={cardLogoFooter}/>
-          </DLSection>
+          <Section id="wasde-soja"  title="SOJA · OFERTA E DEMANDA"  filename="wasde-soja.png"
+            cardData={{...parsed.soja,  commodity:'SOJA'}}  />
+          <Section id="wasde-milho" title="MILHO · OFERTA E DEMANDA" filename="wasde-milho.png"
+            cardData={{...parsed.milho, commodity:'MILHO'}} />
+          <Section id="wasde-trigo" title="TRIGO · OFERTA E DEMANDA" filename="wasde-trigo.png"
+            cardData={{...parsed.trigo, commodity:'TRIGO'}} />
         </>
       ) : (
         <div style={{
-          textAlign:"center",padding:"60px 20px",
-          color:`${G.cream}44`,fontFamily:"'Cinzel',serif",fontSize:13,letterSpacing:"0.15em",
+          textAlign:'center', padding:'60px 20px',
+          color:`${G.cream}33`, fontFamily:"'Cinzel',serif",
+          fontSize:13, letterSpacing:'0.15em',
         }}>
           CARREGUE O ARQUIVO WASDE PARA VISUALIZAR OS CARDS
         </div>
