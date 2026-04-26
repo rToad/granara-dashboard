@@ -1276,206 +1276,254 @@ function WasdeShell({ children, brand, logo, logoFooter, title, reportLabel }) {
   const B = brand || BRANDS.granara;
   return (
     <div style={{
-      width:720, background:B.cardBg, border:`2px solid ${B.cardGold}`,
-      borderRadius:6, overflow:'hidden', fontFamily:"'Cinzel',serif",
-      boxShadow:'0 8px 32px rgba(0,0,0,0.6)',
+      width: 800,
+      background: B.cardBg,
+      border: `2px solid ${B.cardGold}`,
+      borderRadius: 6,
+      overflow: 'hidden',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
     }}>
-      {/* Top strip */}
+      {/* ── Header: logo + fonte ── */}
       <div style={{
-        background:B.headerGrad, borderBottom:`2px solid ${B.cardGold}55`,
-        padding:'10px 18px', display:'flex', justifyContent:'space-between', alignItems:'center',
+        background: B.headerGrad,
+        borderBottom: `2px solid ${B.cardGold}66`,
+        padding: '10px 20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <img src={logo||B.logoHeader} alt={B.name}
-          style={{height:B.logoHeaderH||44, objectFit:'contain', filter:'drop-shadow(0 1px 4px rgba(0,0,0,0.5))'}}/>
-        <div style={{fontSize:9, color:`${B.cardGold}99`, letterSpacing:'0.18em'}}>FONTE: USDA · WASDE</div>
+        <img src={logo || B.logoHeader} alt={B.name}
+          style={{ height: B.logoHeaderH || 44, objectFit: 'contain',
+            filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.5))' }} />
+        <div style={{
+          fontSize: 10, color: `${B.cardGold}88`,
+          letterSpacing: '0.2em', fontFamily: "'Cinzel',serif",
+        }}>FONTE: USDA · WASDE</div>
       </div>
-      {/* Commodity strip */}
-      <div style={{...B.commodityStyle, padding:'14px 20px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+
+      {/* ── Commodity strip ── */}
+      <div style={{
+        ...B.commodityStyle,
+        padding: '14px 20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
         <div>
-          <div style={{fontSize:26, fontWeight:'bold', letterSpacing:'0.22em', color:'#EFE8D8'}}>{title}</div>
-          <div style={{fontSize:9, color:`${B.cardGold}cc`, letterSpacing:'0.14em', marginTop:3, textTransform:'uppercase'}}>
-            Relatório Mensal USDA · Oferta e Demanda
-          </div>
+          <div style={{
+            fontSize: 28, fontWeight: 700, letterSpacing: '0.22em',
+            color: '#EFE8D8', fontFamily: "'Cinzel',serif",
+          }}>{title}</div>
+          <div style={{
+            fontSize: 10, color: `${B.cardGold}bb`, letterSpacing: '0.12em',
+            marginTop: 3, fontFamily: "'Cinzel',serif",
+          }}>RELATÓRIO MENSAL USDA · OFERTA E DEMANDA</div>
         </div>
         {reportLabel && (
           <div style={{
-            textAlign:'right', fontSize:12, color:B.cardGold,
-            fontWeight:'bold', letterSpacing:'0.1em',
-            background:`${B.cardGold}15`, border:`1px solid ${B.cardGold}44`,
-            borderRadius:3, padding:'4px 10px',
-          }}>
-            {reportLabel}
-          </div>
+            fontSize: 13, color: B.cardGold, fontWeight: 700,
+            letterSpacing: '0.1em', fontFamily: "'Cinzel',serif",
+            background: `${B.cardGold}18`,
+            border: `1px solid ${B.cardGold}55`,
+            borderRadius: 3, padding: '5px 12px',
+          }}>{reportLabel}</div>
         )}
       </div>
-      {/* Body */}
-      <div style={{padding:'12px 16px 10px'}}>{children}</div>
-      {/* Footer */}
+
+      {/* ── Body ── */}
+      <div style={{ padding: '16px 20px 12px' }}>{children}</div>
+
+      {/* ── Footer ── */}
       <div style={{
-        borderTop:`1px solid ${B.cardGold}22`, background:`${B.cardMid}22`,
-        padding:'8px 18px', display:'flex', justifyContent:'space-between', alignItems:'center',
+        borderTop: `1px solid ${B.cardGold}22`,
+        background: `${B.cardMid}22`,
+        padding: '8px 20px',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <div style={{fontSize:9, color:`${B.cardGold}55`, fontFamily:'monospace', fontStyle:'italic'}}>
+        <div style={{
+          fontSize: 9, color: `${B.cardGold}55`,
+          fontFamily: 'monospace', fontStyle: 'italic',
+        }}>
           Em milhões de toneladas · *Área em milhões de ha · *Produtividade bu/ha
         </div>
-        <img src={logoFooter||B.logoFooter} alt={B.name} style={{height:B.logoFooterH||36, objectFit:'contain'}}/>
+        <img src={logoFooter || B.logoFooter} alt={B.name}
+          style={{ height: B.logoFooterH || 36, objectFit: 'contain' }} />
       </div>
     </div>
   );
 }
 
 // ── WASDE Section (table inside card) ────────────────────────────────────────
+// Princípios de legibilidade aplicados:
+//   • Rótulos de linha em Arial/sans-serif (não Cinzel) — muito mais legível em small
+//   • Tamanhos mínimos: 12px para dados, 11px para rótulos normais, 13px para hl
+//   • Contraste real: normais em #ccd6cc (não apagado), hl em branco puro
+//   • Separador visual sólido entre histórico e projeção (linha vertical + fundo)
+//   • Coluna EXPEC com fundo diferenciado — não se confunde com dados USDA
+//   • Zebra sutil mas perceptível em linhas alternadas
+//   • Altura de linha generosa (padding vertical real)
+
 function WasdeSection({ title, rows, cols, expec, onExpec, brand, editing }) {
   const B = brand || BRANDS.granara;
 
-  // Formata com decimais alinhados — sempre 2 casas, ponto decimal no mesmo lugar
+  // Números sempre com 2 decimais, alinhamento decimal garantido por monospace
   const fmt = v => v == null
     ? '—'
     : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // cols: [yr0, yr1, yr2_prev, yr2_cur]
-  // Colunas 0-1 = histórico (cinza), 2 = prev month proj (ouro médio), 3 = cur month proj (ouro)
-  const colStyle = (i, hl) => {
-    if (i === 3) return { color: hl ? '#ffffff' : '#e8dcc8', fontWeight: hl ? 'bold' : '500' };
-    if (i === 2) return { color: hl ? '#d4c090' : '#a09070',  fontWeight: hl ? '600'  : 'normal' };
-    return       { color: hl ? '#cccccc' : '#888888',          fontWeight: hl ? '500'  : 'normal' };
-  };
+  // Larguras das 4 colunas de dados + EXPEC
+  // Hist0  Hist1 | Proj-prev  Proj-cur | EXPEC
+  const CW = { h0: 74, h1: 74, p0: 78, p1: 82, ex: 78 };
 
-  // Larguras: histórico menor, projeção atual maior
-  const COL_W  = [66, 66, 72, 76]; // yr0, yr1, yr2_prev, yr2_cur
-  const EXPEC_W = 72;
+  // Cor por coluna: histórico acinzentado, proj-prev dourado suave, proj-cur pleno
+  const numColor = (colIdx, hl) => {
+    if (colIdx === 3) return hl ? '#ffffff'  : '#e2d9c4'; // proj atual — mais brilhante
+    if (colIdx === 2) return hl ? '#d8c888'  : '#9e8e60'; // proj anterior — ouro médio
+    return                    hl ? '#aaaaaa'  : '#777777'; // histórico — cinza
+  };
+  const numSize  = (colIdx, hl) => hl ? (colIdx === 3 ? 14 : 12) : (colIdx === 3 ? 13 : 11);
+  const numBold  = (colIdx, hl) => (hl && colIdx >= 2) ? 700 : (hl ? 600 : 400);
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ marginBottom: 20 }}>
 
-      {/* ── Section header + column labels ── */}
+      {/* ── Cabeçalho da seção + labels de coluna ── */}
       <div style={{
-        background: `linear-gradient(90deg,${B.cardMid},${B.cardBg}88)`,
+        background: `linear-gradient(90deg, ${B.cardMid} 0%, ${B.cardBg}cc 100%)`,
         borderLeft: `3px solid ${B.cardGold}`,
-        borderBottom: `1px solid ${B.cardGold}33`,
-        padding: '6px 10px 5px',
+        borderBottom: `1px solid ${B.cardGold}44`,
+        padding: '8px 12px 6px 14px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
       }}>
-        {/* Section title */}
+        {/* Título da seção */}
         <div style={{
-          fontSize: 10, color: B.cardGold, fontWeight: 'bold',
-          letterSpacing: '0.16em', minWidth: 150,
-        }}>
-          {title}
-        </div>
+          fontSize: 11, color: B.cardGold, fontWeight: 700,
+          letterSpacing: '0.15em', fontFamily: "'Cinzel',serif",
+          minWidth: 160,
+        }}>{title}</div>
 
-        {/* Column headers */}
+        {/* Labels das colunas */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 0 }}>
-          {/* Historic group label */}
+
+          {/* Grupo HISTÓRICO */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
             <div style={{
-              fontSize: 7, color: `${B.cardGold}44`, letterSpacing: '0.1em',
-              marginBottom: 2, paddingRight: 4,
+              fontSize: 8, color: `${B.cardGold}55`, letterSpacing: '0.12em',
+              fontFamily: 'Arial,sans-serif', fontWeight: 600,
+              marginBottom: 3, paddingRight: 2,
             }}>HISTÓRICO</div>
             <div style={{ display: 'flex' }}>
-              {cols.slice(0, 2).map((col, i) => (
-                <div key={i} style={{ width: COL_W[i], textAlign: 'right', paddingRight: 4 }}>
-                  <div style={{ fontSize: 7, color: `${B.cardGold}55`, letterSpacing: '0.05em', lineHeight: 1.3 }}>
-                    {col.safra}
-                  </div>
-                  <div style={{ fontSize: 9, color: `${B.cardGold}88`, fontWeight: 'bold', letterSpacing: '0.06em' }}>
-                    {col.month}
-                  </div>
+              {[{ w: CW.h0, col: cols[0] }, { w: CW.h1, col: cols[1] }].map(({ w, col }, i) => (
+                <div key={i} style={{ width: w, textAlign: 'right', paddingRight: 6 }}>
+                  <div style={{
+                    fontSize: 9, color: `${B.cardGold}55`,
+                    fontFamily: 'Arial,sans-serif', lineHeight: 1.2,
+                  }}>{col?.safra || ''}</div>
+                  <div style={{
+                    fontSize: 11, color: `${B.cardGold}77`, fontWeight: 700,
+                    fontFamily: 'Arial,sans-serif', letterSpacing: '0.04em',
+                  }}>{col?.month || ''}</div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Thin divider */}
-          <div style={{ width: 1, background: `${B.cardGold}33`, alignSelf: 'stretch', margin: '0 2px' }} />
+          {/* Divisor histórico / projeção */}
+          <div style={{
+            width: 1, background: `${B.cardGold}44`,
+            alignSelf: 'stretch', margin: '0 4px',
+          }} />
 
-          {/* Projection group label */}
+          {/* Grupo PROJEÇÃO */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
             <div style={{
-              fontSize: 7, color: `${B.cardGold}88`, letterSpacing: '0.1em',
-              marginBottom: 2, paddingRight: 4,
+              fontSize: 8, color: `${B.cardGold}99`, letterSpacing: '0.12em',
+              fontFamily: 'Arial,sans-serif', fontWeight: 600,
+              marginBottom: 3, paddingRight: 2,
             }}>PROJEÇÃO {cols[2]?.safra || ''}</div>
             <div style={{ display: 'flex' }}>
-              {cols.slice(2).map((col, j) => {
-                const i = j + 2;
-                const isCur = j === 1;
-                return (
-                  <div key={i} style={{ width: COL_W[i], textAlign: 'right', paddingRight: 4 }}>
-                    <div style={{ fontSize: 7, color: isCur ? `${B.cardGold}99` : `${B.cardGold}55`, lineHeight: 1.3 }}>
-                      &nbsp;
-                    </div>
-                    <div style={{
-                      fontSize: isCur ? 10 : 9,
-                      color: isCur ? B.cardGold : `${B.cardGold}77`,
-                      fontWeight: isCur ? 'bold' : 'normal',
-                      letterSpacing: '0.08em',
-                    }}>
-                      {col.month}
-                    </div>
-                  </div>
-                );
-              })}
+              {[{ w: CW.p0, col: cols[2], cur: false }, { w: CW.p1, col: cols[3], cur: true }].map(({ w, col, cur }) => (
+                <div key={cur ? 'cur' : 'prev'} style={{ width: w, textAlign: 'right', paddingRight: 6 }}>
+                  <div style={{
+                    fontSize: 9, color: cur ? `${B.cardGold}99` : `${B.cardGold}55`,
+                    fontFamily: 'Arial,sans-serif', lineHeight: 1.2,
+                  }}>&nbsp;</div>
+                  <div style={{
+                    fontSize: cur ? 13 : 11,
+                    color: cur ? B.cardGold : `${B.cardGold}88`,
+                    fontWeight: 700,
+                    fontFamily: 'Arial,sans-serif', letterSpacing: '0.04em',
+                  }}>{col?.month || ''}</div>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Thin divider */}
-          <div style={{ width: 1, background: '#6fcf9755', alignSelf: 'stretch', margin: '0 2px' }} />
+          {/* Divisor projeção / EXPEC */}
+          <div style={{
+            width: 1, background: '#6fcf9744',
+            alignSelf: 'stretch', margin: '0 4px',
+          }} />
 
-          {/* EXPEC column */}
-          <div style={{ width: EXPEC_W, textAlign: 'right', paddingRight: 6 }}>
-            <div style={{ fontSize: 7, color: '#6fcf9944', lineHeight: 1.3 }}>&nbsp;</div>
-            <div style={{ fontSize: 9, color: '#6fcf97', fontWeight: 'bold', letterSpacing: '0.1em' }}>
-              EXPEC
-            </div>
+          {/* EXPEC */}
+          <div style={{ width: CW.ex, textAlign: 'right', paddingRight: 6 }}>
+            <div style={{ fontSize: 9, lineHeight: 1.2 }}>&nbsp;</div>
+            <div style={{
+              fontSize: 11, color: '#6fcf97', fontWeight: 700,
+              fontFamily: 'Arial,sans-serif', letterSpacing: '0.06em',
+            }}>EXPEC</div>
           </div>
         </div>
       </div>
 
-      {/* ── Data rows ── */}
+      {/* ── Linhas de dados ── */}
       {rows.map(({ label, values, hl }, rowIdx) => {
         const expVal = expec?.[label];
         const isEven = rowIdx % 2 === 0;
         return (
           <div key={label} style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '4px 10px 4px 13px',
-            borderBottom: `1px solid ${B.cardGold}${hl ? '18' : '0a'}`,
+            padding: hl ? '7px 12px 7px 14px' : '5px 12px 5px 14px',
+            borderBottom: `1px solid ${hl ? B.cardGold + '22' : 'rgba(255,255,255,0.04)'}`,
             background: hl
-              ? `${B.cardGold}11`
-              : isEven ? 'rgba(255,255,255,0.015)' : 'transparent',
+              ? `${B.cardGold}14`
+              : isEven ? 'rgba(255,255,255,0.02)' : 'transparent',
           }}>
-            {/* Row label */}
+            {/* Rótulo da linha — sans-serif para máxima legibilidade */}
             <div style={{
               flex: 1,
-              fontSize: hl ? 11 : 10,
-              letterSpacing: hl ? '0.06em' : '0.04em',
-              color: hl ? B.cardGold : '#d0d8d0',
-              fontWeight: hl ? 'bold' : 'normal',
+              fontSize: hl ? 12 : 11,
+              fontFamily: 'Arial,sans-serif',
+              fontWeight: hl ? 700 : 400,
+              letterSpacing: hl ? '0.07em' : '0.02em',
+              color: hl ? B.cardGold : '#c8d4c8',
               textTransform: hl ? 'uppercase' : 'none',
-            }}>
-              {label}
-            </div>
+            }}>{label}</div>
 
-            {/* Values */}
+            {/* Células de valor */}
             <div style={{ display: 'flex', alignItems: 'center' }}>
-              {values.map((v, i) => (
-                <div key={i} style={{
-                  width: COL_W[i],
-                  textAlign: 'right',
-                  paddingRight: 4,
-                  fontSize: hl ? (i === 3 ? 13 : 12) : (i === 3 ? 12 : 11),
-                  fontFamily: "'Courier New', monospace",
-                  ...colStyle(i, hl),
-                }}>
-                  {fmt(v)}
-                </div>
-              ))}
+              {values.map((v, i) => {
+                const w = [CW.h0, CW.h1, CW.p0, CW.p1][i];
+                return (
+                  <div key={i} style={{
+                    width: w, textAlign: 'right', paddingRight: 6,
+                    fontSize: numSize(i, hl),
+                    fontFamily: "'Courier New', monospace",
+                    color: numColor(i, hl),
+                    fontWeight: numBold(i, hl),
+                  }}>
+                    {fmt(v)}
+                  </div>
+                );
+              })}
 
-              {/* Thin divider before EXPEC */}
-              <div style={{ width: 1, background: '#6fcf9733', alignSelf: 'stretch', margin: '0 2px' }} />
+              {/* Divisor antes de EXPEC */}
+              <div style={{
+                width: 1, background: '#6fcf9733',
+                alignSelf: 'stretch', margin: '0 4px',
+              }} />
 
-              {/* EXPEC cell */}
-              <div style={{ width: EXPEC_W, textAlign: 'right', paddingRight: 6 }}>
+              {/* Célula EXPEC */}
+              <div style={{
+                width: CW.ex, textAlign: 'right', paddingRight: 6,
+                background: 'rgba(111,207,151,0.04)',
+              }}>
                 {editing ? (
                   <input
                     type="text"
@@ -1486,22 +1534,22 @@ function WasdeSection({ title, rows, cols, expec, onExpec, brand, editing }) {
                       onExpec && onExpec(label, isNaN(num) ? null : num);
                     }}
                     style={{
-                      width: 66, textAlign: 'right',
-                      fontSize: hl ? 12 : 11,
-                      background: '#6fcf9722',
+                      width: 70, textAlign: 'right',
+                      fontSize: 12,
+                      background: '#6fcf9718',
                       border: `1px solid #6fcf9766`,
                       borderRadius: 2, color: '#6fcf97',
-                      fontFamily: 'monospace',
-                      padding: '1px 4px', outline: 'none',
+                      fontFamily: "'Courier New', monospace",
+                      padding: '2px 4px', outline: 'none',
                     }}
                     placeholder="—"
                   />
                 ) : (
                   <div style={{
-                    fontSize: hl ? 13 : 11,
+                    fontSize: hl ? 14 : 12,
                     fontFamily: "'Courier New', monospace",
-                    color: expVal != null ? '#6fcf97' : `#6fcf9733`,
-                    fontWeight: hl ? 'bold' : 'normal',
+                    color: expVal != null ? '#6fcf97' : 'rgba(111,207,151,0.2)',
+                    fontWeight: hl ? 700 : 400,
                   }}>
                     {expVal != null ? fmt(expVal) : '—'}
                   </div>
