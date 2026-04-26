@@ -1006,33 +1006,52 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
 
 // ── WASDE Parser (XML — robusto por título semântico) ────────────────────────
 //
-// Duas estruturas de página coexistem no WASDE XML:
+// Cada página do WASDE XML usa nomes de tag com sufixos numéricos variáveis:
+//   sr18/sr22: m1_region_group, m1_attribute_group
+//   sr28:      m1_region_group2, m1_attribute_group2, m1_attribute_group3 …
+//   sr11/sr12: attribute1 como elemento filho de m1_attribute_group
 //
-// TIPO A — US pages (sr11 Wheat, sr12 Corn, sr15 Soy):
-//   m1_attribute_group > attribute{N} (element filho com attr attribute{N})
-//     > m1_year_group_Collection > m1_year_group (market_year{N})
-//       > m1_month_group_Collection > m1_month_group (forecast_month{N})
-//         > Cell (cell_value{N})
-//
-// TIPO B — World pages (sr18/19 Wheat, sr22/23 Corn, sr28 Soy):
-//   m1_attribute_group (com attr attribute{N} no próprio tag)
-//     > Cell (cell_value{N})   ← flat, histórico
-//   ou
-//   m1_region_group > m1_month_group > m1_attribute_group > FormatFiller3 > Cell
-//
-// O parser detecta o sufixo numérico automaticamente e roteia para o handler correto.
+// Estratégia: em vez de buscar por tag exato, itera todos os elementos
+// filhos e filtra por prefixo de tag (ex: qualquer tag que contenha
+// "region_group" e não seja "_Collection").
 
 function parseWASDE(xmlText) {
-  const parser = new DOMParser();
-  const doc    = parser.parseFromString(xmlText, 'text/xml');
-  const root   = doc.documentElement;
+  const domParser = new DOMParser();
+  const doc  = domParser.parseFromString(xmlText, 'text/xml');
+  const root = doc.documentElement;
 
   const ptMon = { JAN:'JAN',FEB:'FEV',MAR:'MAR',APR:'ABR',MAY:'MAI',JUN:'JUN',
                   JUL:'JUL',AUG:'AGO',SEP:'SET',OCT:'OUT',NOV:'NOV',DEC:'DEZ' };
   const toNum = s => { const v = parseFloat(String(s||'').replace(/,/g,'')); return isNaN(v)?null:v; };
-  const cleanName = s => String(s||'').replace(/[\r\n]+/g,' ').trim();
+  const clean = s => String(s||'').replace(/[\r\n]+/g,' ').trim();
 
-  // ── Encontra página por termos no sub_report_title ─────────────────────────
+  // Itera filhos diretos de um nó e retorna os que têm tag contendo `frag`
+  function childrenWith(node, frag) {
+    const out = [];
+    for (const c of node.children) {
+      if (c.tagName.includes(frag) && !c.tagName.includes('_Collection')) out.push(c);
+    }
+    return out;
+  }
+
+  // Busca todos os descendentes cujo tag contém `frag` (exceto _Collection)
+  function descWith(node, frag) {
+    const out = [];
+    for (const c of node.querySelectorAll('*')) {
+      if (c.tagName.includes(frag) && !c.tagName.includes('_Collection')) out.push(c);
+    }
+    return out;
+  }
+
+  // Dado um elemento, encontra um atributo cujo nome começa com `prefix`
+  function getAttrByPrefix(el, prefix) {
+    for (const name of el.getAttributeNames()) {
+      if (name.startsWith(prefix)) return el.getAttribute(name);
+    }
+    return null;
+  }
+
+  // Encontra a página pelo sub_report_title
   function findPage(terms) {
     for (const page of root.children) {
       const report = page.querySelector('Report');
@@ -1043,78 +1062,84 @@ function parseWASDE(xmlText) {
     return null;
   }
 
-  // ── Detecta sufixo numérico (1, 2, 4, 5…) de uma página ───────────────────
-  function detectSuffix(report) {
-    for (const el of report.querySelectorAll('Cell')) {
-      for (const k of el.getAttributeNames()) {
-        if (k.startsWith('cell_value')) return k.replace('cell_value','');
-      }
-    }
-    return '1';
-  }
-
-  // ── TIPO A: US pages — attribute como elemento filho ───────────────────────
-  // Retorna Map: attrName → [v_yr0, v_yr1, v_prev, v_cur]
-  function parseUSPageA(report) {
-    const sfx = detectSuffix(report);
+  // ── TIPO A: páginas US (sr11/sr12/sr15) ────────────────────────────────────
+  // m1_attribute_group > attribute{N} filho > year_group > [month_group] > Cell
+  function parseUSPage(report) {
     const map = new Map();
-    for (const ag of report.querySelectorAll('m1_attribute_group')) {
-      const aEl = ag.querySelector(`[attribute${sfx}]`);
-      if (!aEl || aEl.tagName === 'Cell') continue;
-      const name = cleanName(aEl.getAttribute(`attribute${sfx}`));
-      const ygs = [...aEl.querySelectorAll(`m1_year_group`)];
-      const vals = [];
-      for (const yg of ygs) {
-        const mgs = [...yg.querySelectorAll(`m1_month_group`)];
-        if (mgs.length > 0) {
-          for (const mg of mgs) {
-            const cell = mg.querySelector(`Cell[cell_value${sfx}]`);
-            vals.push(cell ? toNum(cell.getAttribute(`cell_value${sfx}`)) : null);
-          }
-        } else {
-          const cell = yg.querySelector(`Cell[cell_value${sfx}]`);
-          vals.push(cell ? toNum(cell.getAttribute(`cell_value${sfx}`)) : null);
+    for (const ag of descWith(report, 'attribute_group')) {
+      // Procura elemento filho cujo TAG começa com 'attribute'
+      let aEl = null;
+      for (const c of ag.children) {
+        if (c.tagName.match(/^attribute\d+$/) && getAttrByPrefix(c, 'attribute')) {
+          aEl = c; break;
         }
       }
-      // Esperamos [yr0, yr1, prev, cur] — 4 valores
+      if (!aEl) continue;
+      const name = clean(getAttrByPrefix(aEl, 'attribute'));
+      const vals = [];
+      for (const yg of descWith(aEl, 'year_group')) {
+        const mgs = childrenWith(yg, 'month_group');
+        if (mgs.length > 0) {
+          for (const mg of mgs) {
+            const cell = mg.querySelector('Cell');
+            vals.push(cell ? toNum(getAttrByPrefix(cell, 'cell_value')) : null);
+          }
+        } else {
+          const cell = yg.querySelector('Cell');
+          vals.push(cell ? toNum(getAttrByPrefix(cell, 'cell_value')) : null);
+        }
+      }
       if (vals.length >= 4) map.set(name, vals.slice(0,4));
     }
     return map;
   }
 
-  // ── TIPO B flat: World pages — attribute no próprio m1_attribute_group ─────
-  // Retorna Map: regionName → Map: attrName → value
-  function parseWorldFlat(matrix, sfx) {
+  // ── TIPO B flat: páginas World históricas (matrix1/2 de sr18/sr22/sr28) ────
+  // m1_region_group{N} > m1_attribute_group{N} (com atributo no próprio tag) > Cell
+  function parseWorldFlat(matrix) {
     const result = new Map();
-    for (const rg of matrix.querySelectorAll('m1_region_group')) {
-      const region = cleanName(rg.getAttribute(`region${sfx}`) || rg.getAttribute('region1') || '');
+    for (const rg of descWith(matrix, 'region_group')) {
+      // Ignora nós que são só containers (não têm atributo region*)
+      const region = clean(getAttrByPrefix(rg, 'region'));
+      if (!region) continue;
       const attrs = new Map();
-      for (const ag of rg.querySelectorAll('m1_attribute_group')) {
-        const name = cleanName(ag.getAttribute(`attribute${sfx}`) || ag.getAttribute('attribute1') || '');
+      for (const ag of childrenWith(rg, 'attribute_group')) {
+        const name = clean(getAttrByPrefix(ag, 'attribute'));
         if (!name) continue;
-        const cell = ag.querySelector(`Cell[cell_value${sfx}]`);
-        if (cell) attrs.set(name, toNum(cell.getAttribute(`cell_value${sfx}`)));
+        const cell = ag.querySelector('Cell');
+        if (cell) {
+          const val = getAttrByPrefix(cell, 'cell_value');
+          if (val && val !== 'filler') attrs.set(name, toNum(val));
+        }
       }
       if (attrs.size) result.set(region, attrs);
     }
     return result;
   }
 
-  // ── TIPO B proj: World cont'd pages — region > month_group > attribute ─────
-  // Retorna Map: regionName → Map: month → Map: attrName → value
-  function parseWorldProj(matrix, sfx) {
+  // ── TIPO B proj: páginas World projeção (cont'd — sr19/sr23 e mx3 de sr28) ─
+  // m1_region_group{N} > m1_month_group{N} > m1_attribute_group{N} > Cell
+  function parseWorldProj(matrix) {
     const result = new Map();
-    for (const rg of matrix.querySelectorAll('m1_region_group')) {
-      const region = cleanName(rg.getAttribute(`region${sfx}`) || rg.getAttribute('region1') || '');
+    // Nível 1: region groups
+    for (const rg of descWith(matrix, 'region_group')) {
+      const region = clean(getAttrByPrefix(rg, 'region'));
+      if (!region) continue;
       const byMonth = new Map();
-      for (const mg of rg.querySelectorAll('m1_month_group')) {
-        const month = (mg.getAttribute(`forecast_month${sfx}`) || mg.getAttribute('forecast_month1') || '').trim();
+      // Nível 2: month groups (filhos diretos do region_group)
+      for (const mg of childrenWith(rg, 'month_group')) {
+        const month = clean(getAttrByPrefix(mg, 'forecast_month'));
+        if (!month) continue;
         const attrs = new Map();
-        for (const ag of mg.querySelectorAll('m1_attribute_group')) {
-          const name = cleanName(ag.getAttribute(`attribute${sfx}`) || ag.getAttribute('attribute1') || '');
+        // Nível 3: attribute groups
+        for (const ag of descWith(mg, 'attribute_group')) {
+          const name = clean(getAttrByPrefix(ag, 'attribute'));
           if (!name) continue;
-          const cell = ag.querySelector(`Cell[cell_value${sfx}]`);
-          if (cell) attrs.set(name, toNum(cell.getAttribute(`cell_value${sfx}`)));
+          const cell = ag.querySelector('Cell');
+          if (cell) {
+            const val = getAttrByPrefix(cell, 'cell_value');
+            if (val && val !== 'filler') attrs.set(name, toNum(val));
+          }
         }
         if (attrs.size) byMonth.set(month, attrs);
       }
@@ -1123,34 +1148,33 @@ function parseWASDE(xmlText) {
     return result;
   }
 
-  // ── Combina flat23, flat24, proj26 numa estrutura uniforme ─────────────────
-  // Retorna Map: regionName → Map: attrName → [v23, v24, vPrev, vCur]
-  function mergeWorldData(flat23, flat24, proj26) {
-    const allRegions = new Set([...flat23.keys(), ...flat24.keys(), ...proj26.keys()]);
-    const regionMap = new Map();
-    for (const region of allRegions) {
+  // Combina flat23 + flat24 + proj26 em [v23, v24, vPrev, vCur] por região+atributo
+  function mergeWorld(flat23, flat24, proj26) {
+    const out = new Map();
+    const regions = new Set([...flat23.keys(), ...flat24.keys(), ...proj26.keys()]);
+    for (const region of regions) {
       const d23 = flat23.get(region) || new Map();
       const d24 = flat24.get(region) || new Map();
       const d26 = proj26.get(region);
-      const allAttrs = new Set([...d23.keys(), ...d24.keys(),
-        ...(d26 ? [...d26.values()].flatMap(m => [...m.keys()]) : [])]);
+      const attrs = new Set([...d23.keys(), ...d24.keys(),
+        ...(d26 ? [...d26.values()].flatMap(m=>[...m.keys()]) : [])]);
       const attrMap = new Map();
-      for (const attr of allAttrs) {
+      for (const attr of attrs) {
         const months = d26 ? [...d26.entries()] : [];
-        const vPrev = months[0] ? months[0][1].get(attr) ?? null : null;
-        const vCur  = months[1] ? months[1][1].get(attr) ?? null : (months[0] ? months[0][1].get(attr) ?? null : null);
+        const vPrev = months[0] ? months[0][1].get(attr)??null : null;
+        const vCur  = months[1] ? months[1][1].get(attr)??null : vPrev;
         attrMap.set(attr, [d23.get(attr)??null, d24.get(attr)??null, vPrev, vCur]);
       }
-      regionMap.set(region, attrMap);
+      out.set(region, attrMap);
     }
-    return regionMap;
+    return out;
   }
 
-  // Helper: busca região por fragmento de nome (trim + endsWith)
+  // Busca valor de uma região+atributo no mapa mundial
   function wv(regionMap, frag, attr) {
-    const f = frag.trim();
+    const f = frag.trim().replace(/\s+\d+\/$/, '').toLowerCase(); // remove "2/" etc
     for (const [key, attrs] of regionMap) {
-      const k = key.trim();
+      const k = key.trim().replace(/\s+\d+\/$/, '').toLowerCase();
       if (k === f || k.endsWith(f) || k.includes(f)) {
         return attrs.get(attr) || [null,null,null,null];
       }
@@ -1158,159 +1182,148 @@ function parseWASDE(xmlText) {
     return [null,null,null,null];
   }
 
-  // ── Metadados: meses e safras do sr15 (Soy US) ─────────────────────────────
+  // Detecta meses e safras a partir dos atributos da página (qualquer sufixo)
   function extractMeta(report) {
-    const sfx = detectSuffix(report);
-    const years = [...report.querySelectorAll(`[market_year${sfx}]`)]
-      .map(el => el.getAttribute(`market_year${sfx}`).trim()).filter(Boolean);
-    const months = [...report.querySelectorAll(`[forecast_month${sfx}]`)]
-      .map(el => el.getAttribute(`forecast_month${sfx}`).trim()).filter(Boolean);
-    const unique = [...new Set(years)];
-    const s = i => (unique[i]||'').replace(/ Est\.| Proj\./g,'').trim();
-    const nonEmpty = [...new Set(months.filter(Boolean))];
-    const pm = ptMon[(nonEmpty[0]||'').slice(0,3).toUpperCase()] || nonEmpty[0]||'';
-    const cm = ptMon[(nonEmpty[1]||nonEmpty[0]||'').slice(0,3).toUpperCase()] || nonEmpty[1]||'';
-    return {
-      cols: [
-        { safra: s(0), month: cm },
-        { safra: s(1), month: cm },
-        { safra: s(2), month: pm },
-        { safra: s(2), month: cm },
-      ],
-    };
+    const years = [], months = [];
+    for (const el of report.querySelectorAll('*')) {
+      const y = getAttrByPrefix(el, 'market_year');
+      if (y) years.push(y.trim());
+      const m = getAttrByPrefix(el, 'forecast_month');
+      if (m && m.trim()) months.push(m.trim());
+    }
+    const uniqueY = [...new Set(years)];
+    const s = i => (uniqueY[i]||'').replace(/ Est\.| Proj\./g,'').trim();
+    const uniqueM = [...new Set(months.filter(Boolean))];
+    const pm = ptMon[(uniqueM[0]||'').slice(0,3).toUpperCase()] || uniqueM[0]||'';
+    const cm = ptMon[(uniqueM[1]||uniqueM[0]||'').slice(0,3).toUpperCase()] || uniqueM[1]||'';
+    return { cols:[
+      { safra:s(0), month:cm },
+      { safra:s(1), month:cm },
+      { safra:s(2), month:pm },
+      { safra:s(2), month:cm },
+    ]};
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // SOJA EUA  (sr15 — Tipo A)
-  // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════
+  // SOJA EUA (sr15)
+  // ══════════════════════════════════════════════════════════════
   const soyUSPage = findPage(['u.s. soybeans', 'products', 'supply and use']);
-  const meta  = soyUSPage ? extractMeta(soyUSPage) : { cols: [{safra:'',month:''},{safra:'',month:''},{safra:'',month:''},{safra:'',month:''}] };
+  const meta  = soyUSPage ? extractMeta(soyUSPage) : { cols:[{safra:'',month:''},{safra:'',month:''},{safra:'',month:''},{safra:'',month:''}] };
   const cols  = meta.cols;
-  const usoyM = soyUSPage ? parseUSPageA(soyUSPage) : new Map();
-  const uv    = attr => usoyM.get(attr) || [null,null,null,null];
+  const usoy  = soyUSPage ? parseUSPage(soyUSPage) : new Map();
+  const uv    = a => usoy.get(a) || [null,null,null,null];
 
   const soyUSRows = [
-    { label:'Área Plantada',  values: uv('Area Planted'),             hl:false },
-    { label:'Área Colhida',   values: uv('Area Harvested'),           hl:false },
-    { label:'Produtividade',  values: uv('Yield per Harvested Acre'), hl:false },
-    { label:'PRODUÇÃO',       values: uv('Production'),               hl:true  },
-    { label:'EXPORTAÇÃO',     values: uv('Exports'),                  hl:true  },
-    { label:'Esmagamento',    values: uv('Crushings'),                hl:false },
-    { label:'IMPORTAÇÃO',     values: uv('Imports'),                  hl:false },
-    { label:'ESTOQUE FINAL',  values: uv('Ending Stocks'),            hl:true  },
+    { label:'Área Plantada',  values:uv('Area Planted'),             hl:false },
+    { label:'Área Colhida',   values:uv('Area Harvested'),           hl:false },
+    { label:'Produtividade',  values:uv('Yield per Harvested Acre'), hl:false },
+    { label:'PRODUÇÃO',       values:uv('Production'),               hl:true  },
+    { label:'EXPORTAÇÃO',     values:uv('Exports'),                  hl:true  },
+    { label:'Esmagamento',    values:uv('Crushings'),                hl:false },
+    { label:'IMPORTAÇÃO',     values:uv('Imports'),                  hl:false },
+    { label:'ESTOQUE FINAL',  values:uv('Ending Stocks'),            hl:true  },
   ];
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // SOJA MUNDO  (sr28 — Tipo B especial com sufixos 4/5/2)
-  // ══════════════════════════════════════════════════════════════════════════
-  const soyWorldPage = findPage(['world soybean supply and use']);
+  // ══════════════════════════════════════════════════════════════
+  // SOJA MUNDO (sr28) — matrizes com tags numerados
+  // ══════════════════════════════════════════════════════════════
+  const soyWPage = findPage(['world soybean supply and use']);
   let soyWM = new Map();
-  if (soyWorldPage) {
-    const mx4 = soyWorldPage.querySelector('matrix4');
-    const mx5 = soyWorldPage.querySelector('matrix5');
-    const mx3 = soyWorldPage.querySelector('matrix3'); // 2025/26 with months
-    const flat23 = mx4 ? parseWorldFlat(mx4, '4') : new Map();
-    const flat24 = mx5 ? parseWorldFlat(mx5, '5') : new Map();
-    const proj26 = mx3 ? parseWorldProj(mx3, '2') : new Map();
-    soyWM = mergeWorldData(flat23, flat24, proj26);
+  if (soyWPage) {
+    // mx4=2023/24 (sufixo 4), mx5=2024/25 (sufixo 5), mx3=proj 2025/26 (sufixo 2/3)
+    const mx4 = soyWPage.querySelector('matrix4');
+    const mx5 = soyWPage.querySelector('matrix5');
+    const mx3 = soyWPage.querySelector('matrix3');
+    const flat23 = mx4 ? parseWorldFlat(mx4) : new Map();
+    const flat24 = mx5 ? parseWorldFlat(mx5) : new Map();
+    const proj26 = mx3 ? parseWorldProj(mx3) : new Map();
+    soyWM = mergeWorld(flat23, flat24, proj26);
   }
 
   const soyWorldRows = [
-    { label:'MUNDO - PRODUÇÃO',      values: wv(soyWM,'World  2/','Production'),      hl:true  },
-    { label:'MUNDO - CONSUMO',       values: wv(soyWM,'World  2/','Domestic Total'),   hl:true  },
-    { label:'MUNDO - ESTOQUE FINAL', values: wv(soyWM,'World  2/','Ending Stocks'),    hl:true  },
-    { label:'BRASIL - PRODUÇÃO',     values: wv(soyWM,'Brazil','Production'),          hl:true  },
-    { label:'BRASIL - EXPORTAÇÃO',   values: wv(soyWM,'Brazil','Exports'),             hl:true  },
-    { label:'ARGENTINA - PROD.',     values: wv(soyWM,'Argentina','Production'),       hl:false },
-    { label:'CHINA - IMPORT.',       values: wv(soyWM,'China','Imports'),              hl:false },
-    { label:'UE - IMPORTAÇÃO',       values: wv(soyWM,'European Union','Imports'),     hl:false },
+    { label:'MUNDO - PRODUÇÃO',      values:wv(soyWM,'World','Production'),      hl:true  },
+    { label:'MUNDO - CONSUMO',       values:wv(soyWM,'World','Domestic Total'),   hl:true  },
+    { label:'MUNDO - ESTOQUE FINAL', values:wv(soyWM,'World','Ending Stocks'),    hl:true  },
+    { label:'BRASIL - PRODUÇÃO',     values:wv(soyWM,'Brazil','Production'),      hl:true  },
+    { label:'BRASIL - EXPORTAÇÃO',   values:wv(soyWM,'Brazil','Exports'),         hl:true  },
+    { label:'ARGENTINA - PROD.',     values:wv(soyWM,'Argentina','Production'),   hl:false },
+    { label:'CHINA - IMPORT.',       values:wv(soyWM,'China','Imports'),          hl:false },
+    { label:'UE - IMPORTAÇÃO',       values:wv(soyWM,'European Union','Imports'), hl:false },
   ];
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // MILHO EUA  (sr12 — Tipo A, sufixo 1)
-  // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════
+  // MILHO EUA (sr12)
+  // ══════════════════════════════════════════════════════════════
   const cornUSPage = findPage(['u.s. feed grain', 'corn supply and use']);
-  const ucornM = cornUSPage ? parseUSPageA(cornUSPage) : new Map();
-  const cuv    = attr => ucornM.get(attr) || [null,null,null,null];
+  const ucorn = cornUSPage ? parseUSPage(cornUSPage) : new Map();
+  const cv    = a => ucorn.get(a) || [null,null,null,null];
 
   const cornUSRows = [
-    { label:'Área Plantada',  values: cuv('Area Planted'),             hl:false },
-    { label:'Área Colhida',   values: cuv('Area Harvested '),          hl:false },
-    { label:'Produtividade',  values: cuv('Yield per Harvested Acre'), hl:false },
-    { label:'PRODUÇÃO',       values: cuv('Production'),               hl:true  },
-    { label:'EXPORTAÇÃO',     values: cuv('Exports'),                  hl:true  },
-    { label:'ESTOQUE FINAL',  values: cuv('Ending Stocks'),            hl:true  },
+    { label:'Área Plantada',  values:cv('Area Planted'),             hl:false },
+    { label:'Área Colhida',   values:cv('Area Harvested '),          hl:false },
+    { label:'Produtividade',  values:cv('Yield per Harvested Acre'), hl:false },
+    { label:'PRODUÇÃO',       values:cv('Production'),               hl:true  },
+    { label:'EXPORTAÇÃO',     values:cv('Exports'),                  hl:true  },
+    { label:'ESTOQUE FINAL',  values:cv('Ending Stocks'),            hl:true  },
   ];
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // MILHO MUNDO  (sr22 flat + sr23 proj — Tipo B, sufixo 1)
-  // ══════════════════════════════════════════════════════════════════════════
-  const cornWorldPage = findPage(['world corn supply and use']);
-  const cornProjPage  = findPage(["world corn supply and use", "cont"]);
+  // ══════════════════════════════════════════════════════════════
+  // MILHO MUNDO (sr22 flat + sr23 proj)
+  // ══════════════════════════════════════════════════════════════
+  const cornWPage  = findPage(['world corn supply and use']);
+  const cornWPageP = findPage(["world corn supply and use", "cont"]);
   let cornWM = new Map();
-  if (cornWorldPage) {
-    const mx1 = cornWorldPage.querySelector('matrix1');
-    const mx2 = cornWorldPage.querySelector('matrix2');
-    const flat23 = mx1 ? parseWorldFlat(mx1, '1') : new Map();
-    const flat24 = mx2 ? parseWorldFlat(mx2, '2') : new Map();
-    let proj26 = new Map();
-    if (cornProjPage) {
-      const pmx = cornProjPage.querySelector('matrix1');
-      if (pmx) proj26 = parseWorldProj(pmx, '1');
-    }
-    cornWM = mergeWorldData(flat23, flat24, proj26);
+  if (cornWPage) {
+    const flat23 = parseWorldFlat(cornWPage.querySelector('matrix1') || cornWPage);
+    const flat24 = parseWorldFlat(cornWPage.querySelector('matrix2') || cornWPage);
+    const proj26 = cornWPageP ? parseWorldProj(cornWPageP.querySelector('matrix1') || cornWPageP) : new Map();
+    cornWM = mergeWorld(flat23, flat24, proj26);
   }
 
   const cornWorldRows = [
-    { label:'MUNDO - PRODUÇÃO',    values: wv(cornWM,'World','Production'),     hl:true  },
-    { label:'MUNDO - CONSUMO',     values: wv(cornWM,'World','Domestic Total'),  hl:true  },
-    { label:'MUNDO - ESTOQUE F.',  values: wv(cornWM,'World','Ending Stocks'),   hl:true  },
-    { label:'CHINA - PRODUÇÃO',    values: wv(cornWM,'China','Production'),      hl:false },
-    { label:'CHINA - ESTOQUE F.',  values: wv(cornWM,'China','Ending Stocks'),   hl:false },
-    { label:'BRASIL - PRODUÇÃO',   values: wv(cornWM,'Brazil','Production'),     hl:true  },
-    { label:'BRASIL - EXPORTAÇÃO', values: wv(cornWM,'Brazil','Exports'),        hl:true  },
-    { label:'UCRÂNIA - EXPORT.',   values: wv(cornWM,'Ukraine','Exports'),       hl:false },
-    { label:'ARGENTINA - PROD.',   values: wv(cornWM,'Argentina','Production'),  hl:false },
-    { label:'ARGENTINA - EXPORT.', values: wv(cornWM,'Argentina','Exports'),     hl:false },
+    { label:'MUNDO - PRODUÇÃO',    values:wv(cornWM,'World','Production'),    hl:true  },
+    { label:'MUNDO - CONSUMO',     values:wv(cornWM,'World','Domestic Total'), hl:true  },
+    { label:'MUNDO - ESTOQUE F.',  values:wv(cornWM,'World','Ending Stocks'),  hl:true  },
+    { label:'CHINA - PRODUÇÃO',    values:wv(cornWM,'China','Production'),     hl:false },
+    { label:'CHINA - ESTOQUE F.',  values:wv(cornWM,'China','Ending Stocks'),  hl:false },
+    { label:'BRASIL - PRODUÇÃO',   values:wv(cornWM,'Brazil','Production'),    hl:true  },
+    { label:'BRASIL - EXPORTAÇÃO', values:wv(cornWM,'Brazil','Exports'),       hl:true  },
+    { label:'UCRÂNIA - EXPORT.',   values:wv(cornWM,'Ukraine','Exports'),      hl:false },
+    { label:'ARGENTINA - PROD.',   values:wv(cornWM,'Argentina','Production'), hl:false },
+    { label:'ARGENTINA - EXPORT.', values:wv(cornWM,'Argentina','Exports'),    hl:false },
   ];
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // TRIGO EUA  (sr11 — Tipo A, sufixo 1)
-  // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════
+  // TRIGO EUA (sr11)
+  // ══════════════════════════════════════════════════════════════
   const wheatUSPage = findPage(['u.s. wheat supply and use']);
-  const uwheatM = wheatUSPage ? parseUSPageA(wheatUSPage) : new Map();
-  const wuv     = attr => uwheatM.get(attr) || [null,null,null,null];
+  const uwheat = wheatUSPage ? parseUSPage(wheatUSPage) : new Map();
+  const wuv    = a => uwheat.get(a) || [null,null,null,null];
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // TRIGO MUNDO  (sr18 flat + sr19 proj — Tipo B, sufixo 1)
-  // ══════════════════════════════════════════════════════════════════════════
-  const wheatWorldPage = findPage(['world wheat supply and use']);
-  const wheatProjPage  = findPage(["world wheat supply and use", "cont"]);
+  // ══════════════════════════════════════════════════════════════
+  // TRIGO MUNDO (sr18 flat + sr19 proj)
+  // ══════════════════════════════════════════════════════════════
+  const wheatWPage  = findPage(['world wheat supply and use']);
+  const wheatWPageP = findPage(["world wheat supply and use", "cont"]);
   let wheatWM = new Map();
-  if (wheatWorldPage) {
-    const mx1 = wheatWorldPage.querySelector('matrix1');
-    const mx2 = wheatWorldPage.querySelector('matrix2');
-    const flat23 = mx1 ? parseWorldFlat(mx1, '1') : new Map();
-    const flat24 = mx2 ? parseWorldFlat(mx2, '2') : new Map();
-    let proj26 = new Map();
-    if (wheatProjPage) {
-      const pmx = wheatProjPage.querySelector('matrix1');
-      if (pmx) proj26 = parseWorldProj(pmx, '1');
-    }
-    wheatWM = mergeWorldData(flat23, flat24, proj26);
+  if (wheatWPage) {
+    const flat23 = parseWorldFlat(wheatWPage.querySelector('matrix1') || wheatWPage);
+    const flat24 = parseWorldFlat(wheatWPage.querySelector('matrix2') || wheatWPage);
+    const proj26 = wheatWPageP ? parseWorldProj(wheatWPageP.querySelector('matrix1') || wheatWPageP) : new Map();
+    wheatWM = mergeWorld(flat23, flat24, proj26);
   }
 
   const wheatWorldRows = [
-    { label:'MUNDO - PRODUÇÃO',      values: wv(wheatWM,'World','Production'),       hl:true  },
-    { label:'MUNDO - CONSUMO',       values: wv(wheatWM,'World','Domestic Total 2/'), hl:true  },
-    { label:'MUNDO - ESTOQUE F.',    values: wv(wheatWM,'World','Ending Stocks'),     hl:true  },
-    { label:'EUA - PRODUÇÃO',        values: wuv('Production'),                       hl:false },
-    { label:'EUA - EXPORTAÇÃO',      values: wuv('Exports'),                          hl:false },
-    { label:'BRASIL - IMPORTAÇÃO',   values: wv(wheatWM,'Brazil','Imports'),          hl:false },
-    { label:'UCRÂNIA - EXPORT.',     values: wv(wheatWM,'Ukraine','Exports'),         hl:false },
-    { label:'ARGENTINA - EXPORT.',   values: wv(wheatWM,'Argentina','Exports'),       hl:false },
-    { label:'RUSSIA - EXPORT.',      values: wv(wheatWM,'Russia','Exports'),          hl:false },
-    { label:'UE - EXPORTAÇÃO',       values: wv(wheatWM,'European Union','Exports'),  hl:false },
+    { label:'MUNDO - PRODUÇÃO',    values:wv(wheatWM,'World','Production'),          hl:true  },
+    { label:'MUNDO - CONSUMO',     values:wv(wheatWM,'World','Domestic Total 2/'),   hl:true  },
+    { label:'MUNDO - ESTOQUE F.',  values:wv(wheatWM,'World','Ending Stocks'),       hl:true  },
+    { label:'EUA - PRODUÇÃO',      values:wuv('Production'),                         hl:false },
+    { label:'EUA - EXPORTAÇÃO',    values:wuv('Exports'),                            hl:false },
+    { label:'BRASIL - IMPORTAÇÃO', values:wv(wheatWM,'Brazil','Imports'),            hl:false },
+    { label:'UCRÂNIA - EXPORT.',   values:wv(wheatWM,'Ukraine','Exports'),           hl:false },
+    { label:'ARGENTINA - EXPORT.', values:wv(wheatWM,'Argentina','Exports'),         hl:false },
+    { label:'RUSSIA - EXPORT.',    values:wv(wheatWM,'Russia','Exports'),            hl:false },
+    { label:'UE - EXPORTAÇÃO',     values:wv(wheatWM,'European Union','Exports'),    hl:false },
   ];
 
   return {
@@ -1324,16 +1337,15 @@ function parseWASDE(xmlText) {
       { key:'cornWorld', title:'MILHO MUNDO', rows:cornWorldRows },
     ]},
     trigo: { cols, commodity:'TRIGO', sections:[
-      { key:'wheatUS',    title:'TRIGO EUA',   rows:[
-        { label:'PRODUÇÃO',      values: wuv('Production'),   hl:true  },
-        { label:'EXPORTAÇÃO',    values: wuv('Exports'),      hl:true  },
-        { label:'ESTOQUE FINAL', values: wuv('Ending Stocks'),hl:true  },
+      { key:'wheatUS',   title:'TRIGO EUA',   rows:[
+        { label:'PRODUÇÃO',      values:wuv('Production'),    hl:true  },
+        { label:'EXPORTAÇÃO',    values:wuv('Exports'),       hl:true  },
+        { label:'ESTOQUE FINAL', values:wuv('Ending Stocks'), hl:true  },
       ]},
       { key:'wheatWorld', title:'TRIGO MUNDO', rows:wheatWorldRows },
     ]},
   };
 }
-
 // ── Constantes de layout (espelham exatamente WasdeRow) ──────────────────────
 const CW = { label: 190, h0: 76, h1: 76, p0: 80, p1: 92, ex: 76 };
 const CW_LABEL_TOTAL = CW.label + 16; // +16 = paddingLeft das linhas
@@ -1473,31 +1485,48 @@ function WasdeSection({ title, rows, cols, expec, onExpec, brand, editing }) {
   const B = brand || BRANDS.granara;
   return (
     <div style={{ marginBottom: 0 }}>
-      {/* Cabeçalho da seção */}
+      {/* Cabeçalho da seção — largura do título = CW_LABEL_TOTAL para alinhar com as linhas */}
       <div style={{
-        display: 'flex', alignItems: 'center',
+        display: 'flex', alignItems: 'stretch',
         background: `linear-gradient(90deg,${B.cardMid},${B.cardBg}cc)`,
         borderTop: `2px solid ${B.cardGold}22`,
         borderBottom: `1px solid ${B.cardGold}33`,
-        padding: '7px 0 7px 13px',
         borderLeft: `3px solid ${B.cardGold}`,
       }}>
+        {/* Título — mesma largura que o label das linhas (paddingLeft incluso) */}
         <div style={{
+          width: CW_LABEL_TOTAL, flexShrink: 0,
           fontSize: 11, fontWeight: 700, color: B.cardGold,
           letterSpacing: '0.16em', fontFamily: "'Cinzel',serif",
-          flex: 1,
+          padding: '7px 0 7px 13px', display: 'flex', alignItems: 'center',
         }}>{title}</div>
-        {/* Mini cabeçalho de colunas repetido — apenas meses */}
-        <div style={{ display: 'flex', alignItems: 'center', paddingRight: 4 }}>
-          <div style={{ width: CW.h0, textAlign: 'right', paddingRight: 8, fontSize: 9, color: `${B.cardGold}44`, fontFamily: 'Arial,sans-serif' }}>{cols[0]?.month}</div>
-          <div style={{ width: CW.h1, textAlign: 'right', paddingRight: 8, fontSize: 9, color: `${B.cardGold}55`, fontFamily: 'Arial,sans-serif' }}>{cols[1]?.month}</div>
-          <div style={{ width: 1, background: `${B.cardGold}22`, alignSelf: 'stretch', margin: '0 4px' }} />
-          <div style={{ width: CW.p0, textAlign: 'right', paddingRight: 8, fontSize: 9, color: `${B.cardGold}77`, fontFamily: 'Arial,sans-serif' }}>{cols[2]?.month}</div>
-          <div style={{ width: CW.p1, textAlign: 'right', paddingRight: 10, fontSize: 10, color: B.cardGold, fontWeight: 700, fontFamily: 'Arial,sans-serif', background: CUR_BG, borderLeft: CUR_BL, borderRight: CUR_BL, alignSelf: 'stretch', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[3]?.month}</div>
-          <div style={{ width: 1, background: '#6fcf9722', alignSelf: 'stretch', margin: '0 4px' }} />
-          <div style={{ width: CW.ex, textAlign: 'right', paddingRight: 8, fontSize: 9, color: '#6fcf9966', fontFamily: 'Arial,sans-serif' }}>EXPEC</div>
-        </div>
+
+        {/* Colunas de mês — mesmas larguras que WasdeRow e WasdeColHeader */}
+        <div style={{ width: CW.h0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+          fontSize: 9, color: `${B.cardGold}44`, fontFamily: 'Arial,sans-serif',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[0]?.month}</div>
+        <div style={{ width: CW.h1, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+          fontSize: 9, color: `${B.cardGold}55`, fontFamily: 'Arial,sans-serif',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[1]?.month}</div>
+
+        <ColDivider color={`${B.cardGold}22`} />
+
+        <div style={{ width: CW.p0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+          fontSize: 9, color: `${B.cardGold}77`, fontFamily: 'Arial,sans-serif',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[2]?.month}</div>
+        {/* Coluna ABR — fundo contínuo */}
+        <div style={{ width: CW.p1, flexShrink: 0, textAlign: 'right', paddingRight: 10,
+          fontSize: 10, fontWeight: 700, color: B.cardGold, fontFamily: 'Arial,sans-serif',
+          background: CUR_BG, borderLeft: CUR_BL, borderRight: CUR_BL,
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[3]?.month}</div>
+
+        <ColDivider color="#6fcf9722" />
+
+        <div style={{ width: CW.ex, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+          fontSize: 9, color: '#6fcf9966', fontFamily: 'Arial,sans-serif',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>EXPEC</div>
       </div>
+
       {/* Linhas */}
       {rows.map(({ label, values, hl }, i) => (
         <WasdeRow key={label} label={label} values={values} hl={hl}
