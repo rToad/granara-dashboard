@@ -709,41 +709,46 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
   );
 }
 
-// PNG download — usa html2canvas (melhor suporte a CORS e fontes)
+// PNG download — usa dom-to-image (melhor suporte a fontes e CORS)
 async function downloadCardPNG(elementId, filename) {
   const el = document.getElementById(elementId);
   if (!el) { alert('Elemento não encontrado: ' + elementId); return; }
 
-  // Carrega html2canvas se necessário
-  if (!window.html2canvas) {
+  // Load dom-to-image
+  if (!window.domtoimage) {
     await new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      s.onload = resolve;
-      s.onerror = () => reject(new Error('Falha ao carregar html2canvas'));
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js';
+      s.onload = resolve; s.onerror = reject;
       document.head.appendChild(s);
     });
   }
 
-  // Aguarda dois frames para garantir que o layout está estável
+  // Inline all <img> as base64 to avoid CORS
+  const imgs = [...el.querySelectorAll('img')];
+  const origSrcs = imgs.map(i => i.src);
+  await Promise.all(imgs.map(async (img, i) => {
+    try {
+      const res = await fetch(img.src, {mode:'cors'});
+      const blob = await res.blob();
+      await new Promise(r => {
+        const fr = new FileReader();
+        fr.onload = e => { img.src = e.target.result; r(); };
+        fr.readAsDataURL(blob);
+      });
+    } catch(_) {}
+  }));
+
+  // Wait two frames for img src swap to render
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  const canvas = await window.html2canvas(el, {
-    scale: 2,
-    useCORS: true,
-    allowTaint: true,
-    backgroundColor: null,
-    logging: false,
-    imageTimeout: 5000,
-    onclone: (doc) => {
-      // Garante que fontes inline sejam aplicadas na cópia
-      const style = doc.createElement('style');
-      style.textContent = `* { font-family: 'Arial', sans-serif; }`;
-      doc.head.appendChild(style);
-    },
-  });
+  let dataUrl;
+  try {
+    dataUrl = await window.domtoimage.toPng(el, { scale: 2 });
+  } finally {
+    imgs.forEach((img,i) => { img.src = origSrcs[i]; });
+  }
 
-  const dataUrl = canvas.toDataURL('image/png');
   const link = document.createElement('a');
   link.download = filename;
   link.href = dataUrl;
@@ -1104,10 +1109,7 @@ function parseWASDE(xmlText) {
         const months = d26 ? [...d26.entries()] : [];
         const vP = months[0] ? months[0][1].get(attr)??null : null;
         const vC = months[1] ? months[1][1].get(attr)??null : vP;
-        const v24 = d24.get(attr)??null;
-        // 5 values: [v23, v24_prev, v24_cur, v25_prev, v25_cur]
-        // v24_prev == v24_cur porque o WASDE atual traz apenas a estimativa corrente para 2024/25
-        am.set(attr, [d23.get(attr)??null, v24, v24, vP, vC]);
+        am.set(attr, [d23.get(attr)??null, d24.get(attr)??null, vP, vC]);
       }
       out.set(region, am);
     }
@@ -1119,9 +1121,9 @@ function parseWASDE(xmlText) {
     const f = frag.trim().toLowerCase().replace(/\s+\d+\/$/, '');
     for (const [key, attrs] of wm) {
       const k = key.trim().toLowerCase().replace(/\s+\d+\/$/, '');
-      if (k===f || k.endsWith(f) || k.includes(f)) return attrs.get(attr) || [null,null,null,null,null];
+      if (k===f || k.endsWith(f) || k.includes(f)) return attrs.get(attr) || [null,null,null,null];
     }
-    return [null,null,null,null,null];
+    return [null,null,null,null];
   }
 
   // Extract US page (sr11/sr12/sr15): attribute child element with year_groups
@@ -1154,12 +1156,7 @@ function parseWASDE(xmlText) {
               vals.push(cell ? toNum(ap(cell,'cell_value')) : null);
             }
           }
-          if (vals.length >= 4) {
-            // 5 values: [v23, v24, v24_dup, v25_prev, v25_cur]
-            // v24 duplicado: WASDE atual tem apenas um valor para 2024/25
-            map.set(name, [vals[0], vals[1], vals[1], vals[2], vals[3]]);
-            break;
-          }
+          if (vals.length >= 4) { map.set(name, vals.slice(0,4)); break; }
         }
       }
     }
@@ -1178,14 +1175,7 @@ function parseWASDE(xmlText) {
     const um = [...new Set(months.filter(Boolean))].filter(m => m.length<=5); // only short form (Mar/Apr)
     const pm = ptMon[(um[0]||'').slice(0,3).toUpperCase()] || (um[0]||'').slice(0,3);
     const cm = ptMon[(um[1]||um[0]||'').slice(0,3).toUpperCase()] || (um[1]||um[0]||'').slice(0,3);
-    // 5 colunas de dados: [2023/24, 2024/25 MAR, 2024/25 ABR, 2025/26 MAR, 2025/26 ABR★]
-    return { cols:[
-      {safra:s(0), month:pm},   // 2023/24 referência histórica
-      {safra:s(1), month:pm},   // 2024/25 estimativa mês anterior
-      {safra:s(1), month:cm},   // 2024/25 estimativa mês atual
-      {safra:s(2), month:pm},   // 2025/26 projeção mês anterior
-      {safra:s(2), month:cm},   // 2025/26 projeção mês atual (destacada)
-    ] };
+    return { cols:[{safra:s(0),month:cm},{safra:s(1),month:cm},{safra:s(2),month:pm},{safra:s(2),month:cm}] };
   }
 
   // ── SOY US ──────────────────────────────────────────────────────────────────
@@ -1193,7 +1183,7 @@ function parseWASDE(xmlText) {
   const meta   = soyUSP ? extractMeta(soyUSP) : {cols:[{safra:'',month:''},{safra:'',month:''},{safra:'',month:''},{safra:'',month:''}]};
   const cols   = meta.cols;
   const usoy   = soyUSP ? extractUS(soyUSP) : new Map();
-  const uv     = a => usoy.get(a)||[null,null,null,null,null];
+  const uv     = a => usoy.get(a)||[null,null,null,null];
 
   const soyUSRows = [
     {label:'Área Plantada',  values:uv('Area Planted'),            hl:false},
@@ -1230,7 +1220,7 @@ function parseWASDE(xmlText) {
   // ── CORN US ─────────────────────────────────────────────────────────────────
   const cornUSP = findPage(['u.s. feed grain','corn supply and use']);
   const ucorn   = cornUSP ? extractUS(cornUSP) : new Map();
-  const cv      = a => ucorn.get(a)||[null,null,null,null,null];
+  const cv      = a => ucorn.get(a)||[null,null,null,null];
 
   const cornUSRows = [
     {label:'Área Plantada', values:cv('Area Planted'),            hl:false},
@@ -1268,7 +1258,7 @@ function parseWASDE(xmlText) {
   // ── WHEAT US ─────────────────────────────────────────────────────────────────
   const wheatUSP = findPage(['u.s. wheat supply and use']);
   const uwheat   = wheatUSP ? extractUS(wheatUSP) : new Map();
-  const wuv      = a => uwheat.get(a)||[null,null,null,null,null];
+  const wuv      = a => uwheat.get(a)||[null,null,null,null];
 
   // ── WHEAT WORLD ──────────────────────────────────────────────────────────────
   const wheatWP  = findPage(['world wheat supply and use']);
@@ -1315,15 +1305,12 @@ function parseWASDE(xmlText) {
   };
 }
 }
-// ── Constantes de layout ─────────────────────────────────────────────────────
-// 7 colunas: [2023/24] [2024/25 MAR] [2024/25 ABR] [EXPEC₂₄] | [2025/26 MAR] [2025/26 ABR★] | [EXPEC₂₅]
-const CW = { label: 190, h0: 66, h1: 66, h2: 70, ex1: 56, p0: 70, p1: 80, ex: 60 };
-const CW_LABEL_TOTAL = CW.label + 16; // 206px — inclui paddingLeft das linhas de dados
-const DIV_W  = 8;
-const CUR_BG = 'rgba(175,150,93,0.13)';  // destaque coluna ABR atual (2025/26)
-const CUR_BL = '1px solid rgba(175,150,93,0.30)';
-const MID_BG = 'rgba(175,150,93,0.06)';  // destaque leve coluna ABR (2024/25)
-const MID_BL = '1px solid rgba(175,150,93,0.16)';
+// ── Constantes de layout (espelham exatamente WasdeRow) ──────────────────────
+const CW = { label: 190, h0: 76, h1: 76, p0: 80, p1: 92, ex: 76 };
+const CW_LABEL_TOTAL = CW.label + 16; // +16 = paddingLeft das linhas
+const DIV_W  = 9;                      // 1px + 4px margin cada lado
+const CUR_BG = 'rgba(175,150,93,0.11)';
+const CUR_BL = '1px solid rgba(175,150,93,0.28)';
 
 function ColDivider({ color }) {
   return (
