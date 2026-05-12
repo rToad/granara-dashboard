@@ -993,6 +993,180 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
 }
 
 
+// ── WASDE Parser XLS (SheetJS workbook) ──────────────────────────────────────
+function parseWASDE_XLS(workbook) {
+  const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
+  const aoa = name => {
+    const sheet = workbook.Sheets[name];
+    if (!sheet) return [];
+    return XLSX2.utils.sheet_to_json(sheet, { header: 1, defval: null });
+  };
+  const toN = v => {
+    if (v == null || String(v).trim() === '' || String(v).trim() === 'NA') return null;
+    const f = parseFloat(String(v).replace(/,/g, ''));
+    return isNaN(f) ? null : f;
+  };
+  const n = (rows, r, c) => toN(rows?.[r]?.[c]);
+  const str = (rows, r, c) => String(rows?.[r]?.[c] || '').trim();
+
+  // Conversões EUA → métricas
+  const acToHa  = v => v == null ? null : Math.round(v * 0.404686 * 100) / 100;
+  const buToMtS = v => v == null ? null : Math.round(v / 36.7437  * 100) / 100;
+  const buToMtC = v => v == null ? null : Math.round(v / 39.368   * 100) / 100;
+  const buToMtW = v => v == null ? null : Math.round(v / 36.744   * 100) / 100;
+
+  // ── Meta: meses e safras ──────────────────────────────────────────────────
+  // Page 15 r8: ['SOYBEANS','2024/25','2025/26 Est.','2026/27 Proj.','2026/27 Proj.']
+  // Page 15 r9: ['','','','Apr','May']
+  const p15 = aoa('Page 15');
+  const safra0 = str(p15,8,1).replace(/ Est\.| Proj\./g,'').trim(); // 2024/25
+  const safra1 = str(p15,8,2).replace(/ Est\.| Proj\./g,'').trim(); // 2025/26
+  const safra2 = str(p15,8,3).replace(/ Est\.| Proj\./g,'').trim(); // 2026/27
+  const ptMon = {JAN:'JAN',FEB:'FEV',MAR:'MAR',APR:'ABR',MAY:'MAI',JUN:'JUN',
+                 JUL:'JUL',AUG:'AGO',SEP:'SET',OCT:'OUT',NOV:'NOV',DEC:'DEZ'};
+  const toMon = s => ptMon[(s||'').slice(0,3).toUpperCase()] || (s||'').slice(0,3);
+  const prevMon = toMon(str(p15,9,3)); // ABR
+  const curMon  = toMon(str(p15,9,4)); // MAI
+
+  const cols = [
+    { safra:safra0, month:curMon  }, // 2024/25 MAI
+    { safra:safra1, month:curMon  }, // 2025/26 MAI
+    { safra:safra1, month:curMon  }, // 2025/26 MAI (dup — sem mês anterior)
+    { safra:safra2, month:prevMon }, // 2026/27 ABR (NA)
+    { safra:safra2, month:curMon  }, // 2026/27 MAI ★
+  ];
+
+  // Helper: 5 valores [2024/25, 2025/26, 2025/26dup, null, 2026/27May]
+  // col1=2024/25, col2=2025/26, col3=NA, col4=2026/27May
+  const r5 = (rows, r, fn) => {
+    const v1 = fn(n(rows,r,1)), v2 = fn(n(rows,r,2)), v4 = fn(n(rows,r,4));
+    return [v1, v2, v2, null, v4];
+  };
+  const id = v => v; // identity for produtividade (sem conversão)
+
+  // ── SOY US (Page 15) ─────────────────────────────────────────────────────
+  // r12=Planted, r13=Harvested, r15=Yield, r18=Prod, r22=Exports, r21=Crush, r19=Imp, r26=EndStk
+  const soyUSRows = [
+    { label:'Área Plantada',  values:r5(p15,12,acToHa),  hl:false },
+    { label:'Área Colhida',   values:r5(p15,13,acToHa),  hl:false },
+    { label:'Produtividade',  values:r5(p15,15,id),       hl:false },
+    { label:'PRODUÇÃO',       values:r5(p15,18,buToMtS),  hl:true  },
+    { label:'EXPORTAÇÃO',     values:r5(p15,22,buToMtS),  hl:true  },
+    { label:'Esmagamento',    values:r5(p15,21,buToMtS),  hl:false },
+    { label:'IMPORTAÇÃO',     values:r5(p15,19,buToMtS),  hl:false },
+    { label:'ESTOQUE FINAL',  values:r5(p15,26,buToMtS),  hl:true  },
+  ];
+
+  // ── SOY WORLD (Page 28) ──────────────────────────────────────────────────
+  // 2024/25: World=r9, Brazil=r15, Argentina=r14, China=r18, EU=r19
+  // 2025/26: World=r25, Brazil=r31, Argentina=r30, China=r34, EU=r35
+  // 2026/27 May: World=r42, Brazil=r54, Argentina=r52, China=r60, EU=r62
+  // cols: c2=BegStk, c3=Prod, c4=Imp, c5=DomCrush, c6=DomTotal, c7=Exp, c8=EndStk
+  const p28 = aoa('Page 28');
+  const ws = (r1, r2, r3, c) => [n(p28,r1,c), n(p28,r2,c), n(p28,r2,c), null, n(p28,r3,c)];
+
+  const soyWorldRows = [
+    { label:'MUNDO - PRODUÇÃO',      values:ws( 9,25,42,3), hl:true  },
+    { label:'MUNDO - CONSUMO',       values:ws( 9,25,42,6), hl:true  },
+    { label:'MUNDO - ESTOQUE FINAL', values:ws( 9,25,42,8), hl:true  },
+    { label:'BRASIL - PRODUÇÃO',     values:ws(15,31,54,3), hl:true  },
+    { label:'BRASIL - EXPORTAÇÃO',   values:ws(15,31,54,7), hl:true  },
+    { label:'ARGENTINA - PROD.',     values:ws(14,30,52,3), hl:false },
+    { label:'CHINA - IMPORT.',       values:ws(18,34,60,4), hl:false },
+    { label:'UE - IMPORTAÇÃO',       values:ws(19,35,62,4), hl:false },
+  ];
+
+  // ── CORN US (Page 12) ────────────────────────────────────────────────────
+  // r32=Planted, r33=Harvested, r35=Yield, r38=Prod, r45=Exports, r47=EndStk
+  const p12 = aoa('Page 12');
+  const cornUSRows = [
+    { label:'Área Plantada',  values:r5(p12,32,acToHa),  hl:false },
+    { label:'Área Colhida',   values:r5(p12,33,acToHa),  hl:false },
+    { label:'Produtividade',  values:r5(p12,35,id),       hl:false },
+    { label:'PRODUÇÃO',       values:r5(p12,38,buToMtC),  hl:true  },
+    { label:'EXPORTAÇÃO',     values:r5(p12,45,buToMtC),  hl:true  },
+    { label:'ESTOQUE FINAL',  values:r5(p12,47,buToMtC),  hl:true  },
+  ];
+
+  // ── CORN WORLD (Page 22 + Page 23) ───────────────────────────────────────
+  // p22 cols: c0=label, c1=BegStk, c2=Prod, c3=Imp, c4=DomFeed, c5=DomTotal, c6=Exp, c7=EndStk
+  // p23 cols: c0=label, c1=Apr/May, c2=BegStk, c3=Prod, c4=Imp, c5=DomFeed, c6=DomTotal, c7=Exp, c8=EndStk
+  // 2024/25: World=r10, Brazil=r16, Argentina=r15, Ukraine=r19, China=r29
+  // 2025/26: World=r34, Brazil=r40, Argentina=r39, Ukraine=r43, China=r53
+  // 2026/27 May: World=r11, Brazil=r23, Argentina=r21, Ukraine=r29, China=r48
+  const p22 = aoa('Page 22');
+  const p23 = aoa('Page 23');
+  const wc = (r1,r2,r3, c22,c23) =>
+    [n(p22,r1,c22), n(p22,r2,c22), n(p22,r2,c22), null, n(p23,r3,c23)];
+
+  const cornWorldRows = [
+    { label:'MUNDO - PRODUÇÃO',    values:wc(10,34,11, 2,3), hl:true  },
+    { label:'MUNDO - CONSUMO',     values:wc(10,34,11, 5,6), hl:true  },
+    { label:'MUNDO - ESTOQUE F.',  values:wc(10,34,11, 7,8), hl:true  },
+    { label:'CHINA - PRODUÇÃO',    values:wc(29,53,48, 2,3), hl:false },
+    { label:'CHINA - ESTOQUE F.',  values:wc(29,53,48, 7,8), hl:false },
+    { label:'BRASIL - PRODUÇÃO',   values:wc(16,40,23, 2,3), hl:true  },
+    { label:'BRASIL - EXPORTAÇÃO', values:wc(16,40,23, 6,7), hl:true  },
+    { label:'UCRÂNIA - EXPORT.',   values:wc(19,43,29, 6,7), hl:false },
+    { label:'ARGENTINA - PROD.',   values:wc(15,39,21, 2,3), hl:false },
+    { label:'ARGENTINA - EXPORT.', values:wc(15,39,21, 6,7), hl:false },
+  ];
+
+  // ── WHEAT US (Page 11) ───────────────────────────────────────────────────
+  // cols: c4=2024/25, c6=2025/26 Est. (layout diferente das outras páginas)
+  // r11=Planted, r12=Harvested, r14=Yield, r17=Prod, r24=Exports, r26=EndStk
+  const p11 = aoa('Page 11');
+  const wUS = (r, fn) => {
+    const v1 = fn(n(p11,r,4)), v2 = fn(n(p11,r,6));
+    return [v1, v2, v2, null, null]; // sem 2026/27 nesta página
+  };
+
+  // ── WHEAT WORLD (Page 18 + Page 19) ──────────────────────────────────────
+  // p18 cols: c0=label, c1=BegStk, c2=Prod, c3=Imp, c4=DomFeed, c5=DomTotal, c6=Exp, c7=EndStk
+  // p19 cols: c0=label, c1=Apr/May, c2=BegStk, c3=Prod, c4=Imp, c5=DomFeed, c6=DomTotal, c7=Exp, c8=EndStk
+  // 2024/25: World=r9, Argentina=r14, EU=r17, Russia=r18, Ukraine=r19, Brazil=r22
+  // 2025/26: World=r34, Argentina=r39, EU=r42, Russia=r43, Ukraine=r44, Brazil(n/a, use p19)
+  // 2026/27 May: World=r11, Argentina=r21, EU=r27, Russia=r29, Ukraine=r31, Brazil=r37
+  const p18 = aoa('Page 18');
+  const p19 = aoa('Page 19');
+  const ww = (r1,r2,r3, c18,c19) =>
+    [n(p18,r1,c18), n(p18,r2,c18), n(p18,r2,c18), null, n(p19,r3,c19)];
+
+  const wheatWorldRows = [
+    { label:'MUNDO - PRODUÇÃO',    values:ww( 9,34,11, 2,3), hl:true  },
+    { label:'MUNDO - CONSUMO',     values:ww( 9,34,11, 5,6), hl:true  },
+    { label:'MUNDO - ESTOQUE F.',  values:ww( 9,34,11, 7,8), hl:true  },
+    { label:'EUA - PRODUÇÃO',      values:wUS(17, buToMtW),   hl:false },
+    { label:'EUA - EXPORTAÇÃO',    values:wUS(24, buToMtW),   hl:false },
+    { label:'BRASIL - IMPORTAÇÃO', values:ww(22,47,37, 3,4), hl:false },
+    { label:'UCRÂNIA - EXPORT.',   values:ww(19,44,31, 6,7),  hl:false },
+    { label:'ARGENTINA - EXPORT.', values:ww(14,39,21, 6,7),  hl:false },
+    { label:'RUSSIA - EXPORT.',    values:ww(18,43,29, 6,7),  hl:false },
+    { label:'UE - EXPORTAÇÃO',     values:ww(17,42,27, 6,7),  hl:false },
+  ];
+
+  return {
+    cols,
+    soja:  { cols, commodity:'SOJA',  sections:[
+      { key:'soyUS',    title:'ESTADOS UNIDOS', rows:soyUSRows    },
+      { key:'soyWorld', title:'MUNDO',          rows:soyWorldRows },
+    ]},
+    milho: { cols, commodity:'MILHO', sections:[
+      { key:'cornUS',    title:'MILHO EUA',   rows:cornUSRows    },
+      { key:'cornWorld', title:'MILHO MUNDO', rows:cornWorldRows },
+    ]},
+    trigo: { cols, commodity:'TRIGO', sections:[
+      { key:'wheatUS',   title:'TRIGO EUA', rows:[
+        { label:'PRODUÇÃO',      values:wUS(17,buToMtW), hl:true },
+        { label:'EXPORTAÇÃO',    values:wUS(24,buToMtW), hl:true },
+        { label:'ESTOQUE FINAL', values:wUS(26,buToMtW), hl:true },
+      ]},
+      { key:'wheatWorld', title:'TRIGO MUNDO', rows:wheatWorldRows },
+    ]},
+  };
+}
+
+
 // ── WASDE Parser ─────────────────────────────────────────────────────────────
 function parseWASDE(xmlText) {
   const doc  = new DOMParser().parseFromString(xmlText, 'text/xml');
@@ -1195,7 +1369,6 @@ function parseWASDE(xmlText) {
   const usoy   = soyUSP ? extractUS(soyUSP) : new Map();
   const uv     = a => usoy.get(a)||[null,null,null,null,null];
 
-  // Conversões EUA → unidades métricas (M acres→M ha, Mbu→Mt)
   const acToHa  = v => v == null ? null : Math.round(v * 0.404686 * 100) / 100;
   const buToMtS = v => v == null ? null : Math.round(v / 36.7437  * 100) / 100;
   const buToMtC = v => v == null ? null : Math.round(v / 39.368   * 100) / 100;
@@ -1644,11 +1817,10 @@ function WasdeTab({ brand }) {
           p = parseWASDE(ev.target.result);
         } else {
           const data = new Uint8Array(ev.target.result);
-          // Legacy XLS path — kept for backward compat but XML is preferred
           const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
           if (!XLSX2) throw new Error('XLSX não disponível para .xls');
           const wb = XLSX2.read(data, {type:'array'});
-          p = parseWASDE(wb); // will fail gracefully — old parser removed
+          p = parseWASDE_XLS(wb);
         }
         setParsed(p);
         setStatus(`✓ WASDE carregado`);
