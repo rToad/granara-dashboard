@@ -1195,22 +1195,22 @@ function parseWASDE(xmlText) {
   const usoy   = soyUSP ? extractUS(soyUSP) : new Map();
   const uv     = a => usoy.get(a)||[null,null,null,null,null];
 
-  // Conversões EUA → unidades métricas
-  const acToHa  = v => v == null ? null : Math.round(v * 0.404686 * 100) / 100; // M acres → M ha
-  const buToMtS = v => v == null ? null : Math.round(v / 36.7437  * 100) / 100; // Mbu soja → Mt
-  const buToMtC = v => v == null ? null : Math.round(v / 39.368   * 100) / 100; // Mbu milho → Mt
-  const buToMtW = v => v == null ? null : Math.round(v / 36.744   * 100) / 100; // Mbu trigo → Mt
+  // Conversões EUA → unidades métricas (M acres→M ha, Mbu→Mt)
+  const acToHa  = v => v == null ? null : Math.round(v * 0.404686 * 100) / 100;
+  const buToMtS = v => v == null ? null : Math.round(v / 36.7437  * 100) / 100;
+  const buToMtC = v => v == null ? null : Math.round(v / 39.368   * 100) / 100;
+  const buToMtW = v => v == null ? null : Math.round(v / 36.744   * 100) / 100;
   const conv    = (vals, fn) => (vals||[]).map(fn);
 
   const soyUSRows = [
-    {label:'Área Plantada',  values:conv(uv('Area Planted'),             acToHa),  hl:false},
-    {label:'Área Colhida',   values:conv(uv('Area Harvested'),           acToHa),  hl:false},
+    {label:'Área Plantada',  values:conv(uv('Area Planted'),            acToHa),  hl:false},
+    {label:'Área Colhida',   values:conv(uv('Area Harvested'),          acToHa),  hl:false},
     {label:'Produtividade',  values:uv('Yield per Harvested Acre'),                hl:false},
-    {label:'PRODUÇÃO',       values:conv(uv('Production'),               buToMtS), hl:true },
-    {label:'EXPORTAÇÃO',     values:conv(uv('Exports'),                  buToMtS), hl:true },
-    {label:'Esmagamento',    values:conv(uv('Crushings'),                buToMtS), hl:false},
-    {label:'IMPORTAÇÃO',     values:conv(uv('Imports'),                  buToMtS), hl:false},
-    {label:'ESTOQUE FINAL',  values:conv(uv('Ending Stocks'),            buToMtS), hl:true },
+    {label:'PRODUÇÃO',       values:conv(uv('Production'),              buToMtS), hl:true },
+    {label:'EXPORTAÇÃO',     values:conv(uv('Exports'),                 buToMtS), hl:true },
+    {label:'Esmagamento',    values:conv(uv('Crushings'),               buToMtS), hl:false},
+    {label:'IMPORTAÇÃO',     values:conv(uv('Imports'),                 buToMtS), hl:false},
+    {label:'ESTOQUE FINAL',  values:conv(uv('Ending Stocks'),           buToMtS), hl:true },
   ];
 
   // ── SOY WORLD ───────────────────────────────────────────────────────────────
@@ -1240,12 +1240,12 @@ function parseWASDE(xmlText) {
   const cv      = a => ucorn.get(a)||[null,null,null,null,null];
 
   const cornUSRows = [
-    {label:'Área Plantada', values:conv(cv('Area Planted'),             acToHa),  hl:false},
-    {label:'Área Colhida',  values:conv(cv('Area Harvested'),           acToHa),  hl:false},
+    {label:'Área Plantada', values:conv(cv('Area Planted'),            acToHa),  hl:false},
+    {label:'Área Colhida',  values:conv(cv('Area Harvested'),          acToHa),  hl:false},
     {label:'Produtividade', values:cv('Yield per Harvested Acre'),                hl:false},
-    {label:'PRODUÇÃO',      values:conv(cv('Production'),               buToMtC), hl:true },
-    {label:'EXPORTAÇÃO',    values:conv(cv('Exports'),                  buToMtC), hl:true },
-    {label:'ESTOQUE FINAL', values:conv(cv('Ending Stocks'),            buToMtC), hl:true },
+    {label:'PRODUÇÃO',      values:conv(cv('Production'),              buToMtC), hl:true },
+    {label:'EXPORTAÇÃO',    values:conv(cv('Exports'),                 buToMtC), hl:true },
+    {label:'ESTOQUE FINAL', values:conv(cv('Ending Stocks'),           buToMtC), hl:true },
   ];
 
   // ── CORN WORLD ───────────────────────────────────────────────────────────────
@@ -1292,8 +1292,8 @@ function parseWASDE(xmlText) {
     {label:'MUNDO - PRODUÇÃO',    values:wv(wheatWM,'World','Production'),         hl:true },
     {label:'MUNDO - CONSUMO',     values:wv(wheatWM,'World','Domestic Total 2/'),  hl:true },
     {label:'MUNDO - ESTOQUE F.',  values:wv(wheatWM,'World','Ending Stocks'),      hl:true },
-    {label:'EUA - PRODUÇÃO',      values:conv(wuv('Production'),    buToMtW),      hl:false},
-    {label:'EUA - EXPORTAÇÃO',    values:conv(wuv('Exports'),       buToMtW),      hl:false},
+    {label:'EUA - PRODUÇÃO',      values:conv(wuv('Production'),  buToMtW),        hl:false},
+    {label:'EUA - EXPORTAÇÃO',    values:conv(wuv('Exports'),     buToMtW),        hl:false},
     {label:'BRASIL - IMPORTAÇÃO', values:wv(wheatWM,'Brazil','Imports'),           hl:false},
     {label:'UCRÂNIA - EXPORT.',   values:wv(wheatWM,'Ukraine','Exports'),          hl:false},
     {label:'ARGENTINA - EXPORT.', values:wv(wheatWM,'Argentina','Exports'),        hl:false},
