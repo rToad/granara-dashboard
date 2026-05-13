@@ -993,6 +993,180 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
 }
 
 
+// ── WASDE Parser XLS (SheetJS workbook) ──────────────────────────────────────
+function parseWASDE_XLS(workbook) {
+  const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
+  const aoa = name => {
+    const sheet = workbook.Sheets[name];
+    if (!sheet) return [];
+    return XLSX2.utils.sheet_to_json(sheet, { header: 1, defval: null });
+  };
+  const toN = v => {
+    if (v == null || String(v).trim() === '' || String(v).trim() === 'NA') return null;
+    const f = parseFloat(String(v).replace(/,/g, ''));
+    return isNaN(f) ? null : f;
+  };
+  const n = (rows, r, c) => toN(rows?.[r]?.[c]);
+  const str = (rows, r, c) => String(rows?.[r]?.[c] || '').trim();
+
+  // Conversões EUA → métricas
+  const acToHa  = v => v == null ? null : Math.round(v * 0.404686 * 100) / 100;
+  const buToMtS = v => v == null ? null : Math.round(v / 36.7437  * 100) / 100;
+  const buToMtC = v => v == null ? null : Math.round(v / 39.368   * 100) / 100;
+  const buToMtW = v => v == null ? null : Math.round(v / 36.744   * 100) / 100;
+
+  // ── Meta: meses e safras ──────────────────────────────────────────────────
+  // Page 15 r8: ['SOYBEANS','2024/25','2025/26 Est.','2026/27 Proj.','2026/27 Proj.']
+  // Page 15 r9: ['','','','Apr','May']
+  const p15 = aoa('Page 15');
+  const safra0 = str(p15,8,1).replace(/ Est\.| Proj\./g,'').trim(); // 2024/25
+  const safra1 = str(p15,8,2).replace(/ Est\.| Proj\./g,'').trim(); // 2025/26
+  const safra2 = str(p15,8,3).replace(/ Est\.| Proj\./g,'').trim(); // 2026/27
+  const ptMon = {JAN:'JAN',FEB:'FEV',MAR:'MAR',APR:'ABR',MAY:'MAI',JUN:'JUN',
+                 JUL:'JUL',AUG:'AGO',SEP:'SET',OCT:'OUT',NOV:'NOV',DEC:'DEZ'};
+  const toMon = s => ptMon[(s||'').slice(0,3).toUpperCase()] || (s||'').slice(0,3);
+  const prevMon = toMon(str(p15,9,3)); // ABR
+  const curMon  = toMon(str(p15,9,4)); // MAI
+
+  const cols = [
+    { safra:safra0, month:curMon  }, // 2024/25 MAI
+    { safra:safra1, month:curMon  }, // 2025/26 MAI
+    { safra:safra1, month:curMon  }, // 2025/26 MAI (dup — sem mês anterior)
+    { safra:safra2, month:prevMon }, // 2026/27 ABR (NA)
+    { safra:safra2, month:curMon  }, // 2026/27 MAI ★
+  ];
+
+  // Helper: 5 valores [2024/25, 2025/26, 2025/26dup, null, 2026/27May]
+  // col1=2024/25, col2=2025/26, col3=NA, col4=2026/27May
+  const r5 = (rows, r, fn) => {
+    const v1 = fn(n(rows,r,1)), v2 = fn(n(rows,r,2)), v4 = fn(n(rows,r,4));
+    return [v1, v2, v2, null, v4];
+  };
+  const id = v => v; // identity for produtividade (sem conversão)
+
+  // ── SOY US (Page 15) ─────────────────────────────────────────────────────
+  // r12=Planted, r13=Harvested, r15=Yield, r18=Prod, r22=Exports, r21=Crush, r19=Imp, r26=EndStk
+  const soyUSRows = [
+    { label:'Área Plantada',  values:r5(p15,12,acToHa),  hl:false },
+    { label:'Área Colhida',   values:r5(p15,13,acToHa),  hl:false },
+    { label:'Produtividade',  values:r5(p15,15,id),       hl:false },
+    { label:'PRODUÇÃO',       values:r5(p15,18,buToMtS),  hl:true  },
+    { label:'EXPORTAÇÃO',     values:r5(p15,22,buToMtS),  hl:true  },
+    { label:'Esmagamento',    values:r5(p15,21,buToMtS),  hl:false },
+    { label:'IMPORTAÇÃO',     values:r5(p15,19,buToMtS),  hl:false },
+    { label:'ESTOQUE FINAL',  values:r5(p15,26,buToMtS),  hl:true  },
+  ];
+
+  // ── SOY WORLD (Page 28) ──────────────────────────────────────────────────
+  // 2024/25: World=r9, Brazil=r15, Argentina=r14, China=r18, EU=r19
+  // 2025/26: World=r25, Brazil=r31, Argentina=r30, China=r34, EU=r35
+  // 2026/27 May: World=r42, Brazil=r54, Argentina=r52, China=r60, EU=r62
+  // cols: c2=BegStk, c3=Prod, c4=Imp, c5=DomCrush, c6=DomTotal, c7=Exp, c8=EndStk
+  const p28 = aoa('Page 28');
+  const ws = (r1, r2, r3, c) => [n(p28,r1,c), n(p28,r2,c), n(p28,r2,c), null, n(p28,r3,c)];
+
+  const soyWorldRows = [
+    { label:'MUNDO - PRODUÇÃO',      values:ws( 9,25,42,3), hl:true  },
+    { label:'MUNDO - CONSUMO',       values:ws( 9,25,42,6), hl:true  },
+    { label:'MUNDO - ESTOQUE FINAL', values:ws( 9,25,42,8), hl:true  },
+    { label:'BRASIL - PRODUÇÃO',     values:ws(15,31,54,3), hl:true  },
+    { label:'BRASIL - EXPORTAÇÃO',   values:ws(15,31,54,7), hl:true  },
+    { label:'ARGENTINA - PROD.',     values:ws(14,30,52,3), hl:false },
+    { label:'CHINA - IMPORT.',       values:ws(18,34,60,4), hl:false },
+    { label:'UE - IMPORTAÇÃO',       values:ws(19,35,62,4), hl:false },
+  ];
+
+  // ── CORN US (Page 12) ────────────────────────────────────────────────────
+  // r32=Planted, r33=Harvested, r35=Yield, r38=Prod, r45=Exports, r47=EndStk
+  const p12 = aoa('Page 12');
+  const cornUSRows = [
+    { label:'Área Plantada',  values:r5(p12,32,acToHa),  hl:false },
+    { label:'Área Colhida',   values:r5(p12,33,acToHa),  hl:false },
+    { label:'Produtividade',  values:r5(p12,35,id),       hl:false },
+    { label:'PRODUÇÃO',       values:r5(p12,38,buToMtC),  hl:true  },
+    { label:'EXPORTAÇÃO',     values:r5(p12,45,buToMtC),  hl:true  },
+    { label:'ESTOQUE FINAL',  values:r5(p12,47,buToMtC),  hl:true  },
+  ];
+
+  // ── CORN WORLD (Page 22 + Page 23) ───────────────────────────────────────
+  // p22 cols: c0=label, c1=BegStk, c2=Prod, c3=Imp, c4=DomFeed, c5=DomTotal, c6=Exp, c7=EndStk
+  // p23 cols: c0=label, c1=Apr/May, c2=BegStk, c3=Prod, c4=Imp, c5=DomFeed, c6=DomTotal, c7=Exp, c8=EndStk
+  // 2024/25: World=r10, Brazil=r16, Argentina=r15, Ukraine=r19, China=r29
+  // 2025/26: World=r34, Brazil=r40, Argentina=r39, Ukraine=r43, China=r53
+  // 2026/27 May: World=r11, Brazil=r23, Argentina=r21, Ukraine=r29, China=r48
+  const p22 = aoa('Page 22');
+  const p23 = aoa('Page 23');
+  const wc = (r1,r2,r3, c22,c23) =>
+    [n(p22,r1,c22), n(p22,r2,c22), n(p22,r2,c22), null, n(p23,r3,c23)];
+
+  const cornWorldRows = [
+    { label:'MUNDO - PRODUÇÃO',    values:wc(10,34,11, 2,3), hl:true  },
+    { label:'MUNDO - CONSUMO',     values:wc(10,34,11, 5,6), hl:true  },
+    { label:'MUNDO - ESTOQUE F.',  values:wc(10,34,11, 7,8), hl:true  },
+    { label:'CHINA - PRODUÇÃO',    values:wc(29,53,48, 2,3), hl:false },
+    { label:'CHINA - ESTOQUE F.',  values:wc(29,53,48, 7,8), hl:false },
+    { label:'BRASIL - PRODUÇÃO',   values:wc(16,40,23, 2,3), hl:true  },
+    { label:'BRASIL - EXPORTAÇÃO', values:wc(16,40,23, 6,7), hl:true  },
+    { label:'UCRÂNIA - EXPORT.',   values:wc(19,43,29, 6,7), hl:false },
+    { label:'ARGENTINA - PROD.',   values:wc(15,39,21, 2,3), hl:false },
+    { label:'ARGENTINA - EXPORT.', values:wc(15,39,21, 6,7), hl:false },
+  ];
+
+  // ── WHEAT US (Page 11) ───────────────────────────────────────────────────
+  // cols: c4=2024/25, c6=2025/26 Est. (layout diferente das outras páginas)
+  // r11=Planted, r12=Harvested, r14=Yield, r17=Prod, r24=Exports, r26=EndStk
+  const p11 = aoa('Page 11');
+  const wUS = (r, fn) => {
+    const v1 = fn(n(p11,r,4)), v2 = fn(n(p11,r,6));
+    return [v1, v2, v2, null, null]; // sem 2026/27 nesta página
+  };
+
+  // ── WHEAT WORLD (Page 18 + Page 19) ──────────────────────────────────────
+  // p18 cols: c0=label, c1=BegStk, c2=Prod, c3=Imp, c4=DomFeed, c5=DomTotal, c6=Exp, c7=EndStk
+  // p19 cols: c0=label, c1=Apr/May, c2=BegStk, c3=Prod, c4=Imp, c5=DomFeed, c6=DomTotal, c7=Exp, c8=EndStk
+  // 2024/25: World=r9, Argentina=r14, EU=r17, Russia=r18, Ukraine=r19, Brazil=r22
+  // 2025/26: World=r34, Argentina=r39, EU=r42, Russia=r43, Ukraine=r44, Brazil(n/a, use p19)
+  // 2026/27 May: World=r11, Argentina=r21, EU=r27, Russia=r29, Ukraine=r31, Brazil=r37
+  const p18 = aoa('Page 18');
+  const p19 = aoa('Page 19');
+  const ww = (r1,r2,r3, c18,c19) =>
+    [n(p18,r1,c18), n(p18,r2,c18), n(p18,r2,c18), null, n(p19,r3,c19)];
+
+  const wheatWorldRows = [
+    { label:'MUNDO - PRODUÇÃO',    values:ww( 9,34,11, 2,3), hl:true  },
+    { label:'MUNDO - CONSUMO',     values:ww( 9,34,11, 5,6), hl:true  },
+    { label:'MUNDO - ESTOQUE F.',  values:ww( 9,34,11, 7,8), hl:true  },
+    { label:'EUA - PRODUÇÃO',      values:wUS(17, buToMtW),   hl:false },
+    { label:'EUA - EXPORTAÇÃO',    values:wUS(24, buToMtW),   hl:false },
+    { label:'BRASIL - IMPORTAÇÃO', values:ww(22,47,37, 3,4), hl:false },
+    { label:'UCRÂNIA - EXPORT.',   values:ww(19,44,31, 6,7),  hl:false },
+    { label:'ARGENTINA - EXPORT.', values:ww(14,39,21, 6,7),  hl:false },
+    { label:'RUSSIA - EXPORT.',    values:ww(18,43,29, 6,7),  hl:false },
+    { label:'UE - EXPORTAÇÃO',     values:ww(17,42,27, 6,7),  hl:false },
+  ];
+
+  return {
+    cols,
+    soja:  { cols, commodity:'SOJA',  sections:[
+      { key:'soyUS',    title:'ESTADOS UNIDOS', rows:soyUSRows    },
+      { key:'soyWorld', title:'MUNDO',          rows:soyWorldRows },
+    ]},
+    milho: { cols, commodity:'MILHO', sections:[
+      { key:'cornUS',    title:'MILHO EUA',   rows:cornUSRows    },
+      { key:'cornWorld', title:'MILHO MUNDO', rows:cornWorldRows },
+    ]},
+    trigo: { cols, commodity:'TRIGO', sections:[
+      { key:'wheatUS',   title:'TRIGO EUA', rows:[
+        { label:'PRODUÇÃO',      values:wUS(17,buToMtW), hl:true },
+        { label:'EXPORTAÇÃO',    values:wUS(24,buToMtW), hl:true },
+        { label:'ESTOQUE FINAL', values:wUS(26,buToMtW), hl:true },
+      ]},
+      { key:'wheatWorld', title:'TRIGO MUNDO', rows:wheatWorldRows },
+    ]},
+  };
+}
+
+
 // ── WASDE Parser ─────────────────────────────────────────────────────────────
 function parseWASDE(xmlText) {
   const doc  = new DOMParser().parseFromString(xmlText, 'text/xml');
@@ -1190,20 +1364,26 @@ function parseWASDE(xmlText) {
 
   // ── SOY US ──────────────────────────────────────────────────────────────────
   const soyUSP = findPage(['u.s. soybeans','products','supply and use']);
-  const meta   = soyUSP ? extractMeta(soyUSP) : {cols:[{safra:'',month:''},{safra:'',month:''},{safra:'',month:''},{safra:'',month:''}]};
+  const meta   = soyUSP ? extractMeta(soyUSP) : {cols:[{safra:'',month:''},{safra:'',month:''},{safra:'',month:''},{safra:'',month:''},{safra:'',month:''}]};
   const cols   = meta.cols;
   const usoy   = soyUSP ? extractUS(soyUSP) : new Map();
   const uv     = a => usoy.get(a)||[null,null,null,null,null];
 
+  const acToHa  = v => v == null ? null : Math.round(v * 0.404686 * 100) / 100;
+  const buToMtS = v => v == null ? null : Math.round(v / 36.7437  * 100) / 100;
+  const buToMtC = v => v == null ? null : Math.round(v / 39.368   * 100) / 100;
+  const buToMtW = v => v == null ? null : Math.round(v / 36.744   * 100) / 100;
+  const conv    = (vals, fn) => (vals||[]).map(fn);
+
   const soyUSRows = [
-    {label:'Área Plantada',  values:uv('Area Planted'),            hl:false},
-    {label:'Área Colhida',   values:uv('Area Harvested'),          hl:false},
-    {label:'Produtividade',  values:uv('Yield per Harvested Acre'),hl:false},
-    {label:'PRODUÇÃO',       values:uv('Production'),              hl:true },
-    {label:'EXPORTAÇÃO',     values:uv('Exports'),                 hl:true },
-    {label:'Esmagamento',    values:uv('Crushings'),               hl:false},
-    {label:'IMPORTAÇÃO',     values:uv('Imports'),                 hl:false},
-    {label:'ESTOQUE FINAL',  values:uv('Ending Stocks'),           hl:true },
+    {label:'Área Plantada',  values:conv(uv('Area Planted'),            acToHa),  hl:false},
+    {label:'Área Colhida',   values:conv(uv('Area Harvested'),          acToHa),  hl:false},
+    {label:'Produtividade',  values:uv('Yield per Harvested Acre'),                hl:false},
+    {label:'PRODUÇÃO',       values:conv(uv('Production'),              buToMtS), hl:true },
+    {label:'EXPORTAÇÃO',     values:conv(uv('Exports'),                 buToMtS), hl:true },
+    {label:'Esmagamento',    values:conv(uv('Crushings'),               buToMtS), hl:false},
+    {label:'IMPORTAÇÃO',     values:conv(uv('Imports'),                 buToMtS), hl:false},
+    {label:'ESTOQUE FINAL',  values:conv(uv('Ending Stocks'),           buToMtS), hl:true },
   ];
 
   // ── SOY WORLD ───────────────────────────────────────────────────────────────
@@ -1233,12 +1413,12 @@ function parseWASDE(xmlText) {
   const cv      = a => ucorn.get(a)||[null,null,null,null,null];
 
   const cornUSRows = [
-    {label:'Área Plantada', values:cv('Area Planted'),            hl:false},
-    {label:'Área Colhida',  values:cv('Area Harvested'),          hl:false},
-    {label:'Produtividade', values:cv('Yield per Harvested Acre'),hl:false},
-    {label:'PRODUÇÃO',      values:cv('Production'),              hl:true },
-    {label:'EXPORTAÇÃO',    values:cv('Exports'),                 hl:true },
-    {label:'ESTOQUE FINAL', values:cv('Ending Stocks'),           hl:true },
+    {label:'Área Plantada', values:conv(cv('Area Planted'),            acToHa),  hl:false},
+    {label:'Área Colhida',  values:conv(cv('Area Harvested'),          acToHa),  hl:false},
+    {label:'Produtividade', values:cv('Yield per Harvested Acre'),                hl:false},
+    {label:'PRODUÇÃO',      values:conv(cv('Production'),              buToMtC), hl:true },
+    {label:'EXPORTAÇÃO',    values:conv(cv('Exports'),                 buToMtC), hl:true },
+    {label:'ESTOQUE FINAL', values:conv(cv('Ending Stocks'),           buToMtC), hl:true },
   ];
 
   // ── CORN WORLD ───────────────────────────────────────────────────────────────
@@ -1285,8 +1465,8 @@ function parseWASDE(xmlText) {
     {label:'MUNDO - PRODUÇÃO',    values:wv(wheatWM,'World','Production'),         hl:true },
     {label:'MUNDO - CONSUMO',     values:wv(wheatWM,'World','Domestic Total 2/'),  hl:true },
     {label:'MUNDO - ESTOQUE F.',  values:wv(wheatWM,'World','Ending Stocks'),      hl:true },
-    {label:'EUA - PRODUÇÃO',      values:wuv('Production'),                        hl:false},
-    {label:'EUA - EXPORTAÇÃO',    values:wuv('Exports'),                           hl:false},
+    {label:'EUA - PRODUÇÃO',      values:conv(wuv('Production'),  buToMtW),        hl:false},
+    {label:'EUA - EXPORTAÇÃO',    values:conv(wuv('Exports'),     buToMtW),        hl:false},
     {label:'BRASIL - IMPORTAÇÃO', values:wv(wheatWM,'Brazil','Imports'),           hl:false},
     {label:'UCRÂNIA - EXPORT.',   values:wv(wheatWM,'Ukraine','Exports'),          hl:false},
     {label:'ARGENTINA - EXPORT.', values:wv(wheatWM,'Argentina','Exports'),        hl:false},
@@ -1306,9 +1486,9 @@ function parseWASDE(xmlText) {
     ]},
     trigo: {cols, commodity:'TRIGO', sections:[
       {key:'wheatUS',   title:'TRIGO EUA',   rows:[
-        {label:'PRODUÇÃO',      values:wuv('Production'),    hl:true },
-        {label:'EXPORTAÇÃO',    values:wuv('Exports'),       hl:true },
-        {label:'ESTOQUE FINAL', values:wuv('Ending Stocks'), hl:true },
+        {label:'PRODUÇÃO',      values:conv(wuv('Production'),    buToMtW), hl:true },
+        {label:'EXPORTAÇÃO',    values:conv(wuv('Exports'),       buToMtW), hl:true },
+        {label:'ESTOQUE FINAL', values:conv(wuv('Ending Stocks'), buToMtW), hl:true },
       ]},
       {key:'wheatWorld', title:'TRIGO MUNDO', rows:wheatWorldRows},
     ]},
@@ -1316,58 +1496,44 @@ function parseWASDE(xmlText) {
 }
 // ── Constantes de layout ─────────────────────────────────────────────────────
 // 7 colunas: [2023/24] [2024/25 MAR] [2024/25 ABR] [EXPEC₂₄] | [2025/26 MAR] [2025/26 ABR★] | [EXPEC₂₅]
-const CW = { label: 190, h0: 66, h1: 66, h2: 70, ex1: 56, p0: 70, p1: 80, ex: 60 };
-const CW_LABEL_TOTAL = CW.label + 16; // 206px — inclui paddingLeft das linhas de dados
-const DIV_W  = 8;
-const CUR_BG = 'rgba(175,150,93,0.13)';  // destaque coluna ABR atual (2025/26)
-const CUR_BL = '1px solid rgba(175,150,93,0.30)';
-const MID_BG = 'rgba(175,150,93,0.06)';  // destaque leve coluna ABR (2024/25)
-const MID_BL = '1px solid rgba(175,150,93,0.16)';
+// ── Layout CSS Grid — alinhamento garantido ──────────────────────────────────
+// Uma única string de template, compartilhada por TODOS os componentes.
+// Colunas: label | h0 | h1 | h2(fundo suave) | div | p0 | p1(fundo forte) | div | ex
+const GRID_COLS = '206px 66px 66px 70px 8px 70px 80px 8px 60px';
+const GC = { label:1, h0:2, h1:3, h2:4, div1:5, p0:6, p1:7, div2:8, ex:9 };
+const MID_BG = 'rgba(175,150,93,0.07)';
+const CUR_BG = 'rgba(175,150,93,0.13)';
 
-function ColDivider({ color }) {
-  return (
-    <div style={{ width: DIV_W, flexShrink: 0, display: 'flex',
-      alignItems: 'stretch', justifyContent: 'center' }}>
-      <div style={{ width: 1, background: color }} />
-    </div>
-  );
-}
-
-// cols[0]=2023/24  cols[1]=2024/25 MAR  cols[2]=2024/25 ABR  cols[3]=2025/26 MAR  cols[4]=2025/26 ABR
 function WasdeColHeader({ cols, B }) {
-  const col = (w, safra, month, color, size, extra) => (
-    <div style={{ width: w, flexShrink: 0, textAlign: 'right',
-      paddingRight: 8, paddingTop: 7, paddingBottom: 5, ...(extra||{}) }}>
-      <div style={{ fontSize: 8, color: `${B.cardGold}55`,
-        fontFamily: 'Arial,sans-serif', lineHeight: 1.3 }}>{safra}</div>
-      <div style={{ fontSize: size||11, fontWeight: 700, color,
-        fontFamily: 'Arial,sans-serif' }}>{month}</div>
+  const baseCell = (col, extra) => ({
+    gridColumn: col, display:'flex', alignItems:'flex-end', justifyContent:'flex-end',
+    textAlign:'right', paddingRight: col===GC.p1 ? 10 : 8,
+    paddingTop:7, paddingBottom:5, ...(extra||{}),
+  });
+  const safraStyle = { fontSize:8, color:`${B.cardGold}55`, fontFamily:'Arial,sans-serif', lineHeight:1.3 };
+  const cell = (col, safra, month, color, size, extra) => (
+    <div style={baseCell(col, { flexDirection:'column', alignItems:'flex-end', justifyContent:'flex-end', ...extra })}>
+      <div style={safraStyle}>{safra}</div>
+      <div style={{ fontSize:size||11, fontWeight:700, color, fontFamily:'Arial,sans-serif' }}>{month}</div>
     </div>
   );
   return (
-    <div style={{ display: 'flex', alignItems: 'stretch',
-      borderBottom: `1px solid ${B.cardGold}44`, background: '#001a17' }}>
-      <div style={{ width: CW_LABEL_TOTAL, flexShrink: 0 }} />
-      {col(CW.h0, cols[0]?.safra, cols[0]?.month, `${B.cardGold}44`)}
-      {col(CW.h1, cols[1]?.safra, cols[1]?.month, `${B.cardGold}66`)}
-      {col(CW.h2 + 2, cols[2]?.safra, cols[2]?.month, `${B.cardGold}99`, 11,
-        { background: MID_BG, borderLeft: MID_BL, borderRight: MID_BL })}
-      <ColDivider color={`${B.cardGold}22`} />
-      {col(CW.p0, cols[3]?.safra, cols[3]?.month, `${B.cardGold}bb`)}
-      <div style={{ width: CW.p1 + 2, flexShrink: 0, textAlign: 'right',
-        paddingRight: 10, paddingTop: 7, paddingBottom: 5,
-        background: CUR_BG, borderLeft: CUR_BL, borderRight: CUR_BL }}>
-        <div style={{ fontSize: 8, color: `${B.cardGold}99`,
-          fontFamily: 'Arial,sans-serif', lineHeight: 1.3 }}>{cols[4]?.safra}</div>
-        <div style={{ fontSize: 14, fontWeight: 700, color: B.cardGold,
-          fontFamily: 'Arial,sans-serif', letterSpacing: '0.06em' }}>{cols[4]?.month}</div>
-      </div>
-      <ColDivider color="#6fcf9733" />
-      <div style={{ width: CW.ex, flexShrink: 0, textAlign: 'right',
-        paddingRight: 8, paddingTop: 7, paddingBottom: 5 }}>
-        <div style={{ fontSize: 9, lineHeight: 1.3 }}>&nbsp;</div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#6fcf97',
-          fontFamily: 'Arial,sans-serif', letterSpacing: '0.06em' }}>EXPEC</div>
+    <div style={{ display:'grid', gridTemplateColumns:GRID_COLS,
+      background:'#001a17', borderBottom:`1px solid ${B.cardGold}44` }}>
+      <div style={{ gridColumn:GC.label }} />
+      {cell(GC.h0, cols[0]?.safra, cols[0]?.month, `${B.cardGold}44`)}
+      {cell(GC.h1, cols[1]?.safra, cols[1]?.month, `${B.cardGold}66`)}
+      {cell(GC.h2, cols[2]?.safra, cols[2]?.month, `${B.cardGold}99`, 11, { background:MID_BG })}
+      <div style={{ gridColumn:GC.div1, background:MID_BG }} />
+      {cell(GC.p0, cols[3]?.safra, cols[3]?.month, `${B.cardGold}bb`)}
+      {cell(GC.p1, cols[4]?.safra, cols[4]?.month, B.cardGold, 14, { background:CUR_BG })}
+      <div style={{ gridColumn:GC.div2 }} />
+      <div style={{ gridColumn:GC.ex, display:'flex', flexDirection:'column',
+        alignItems:'flex-end', justifyContent:'flex-end',
+        paddingRight:8, paddingTop:7, paddingBottom:5 }}>
+        <div style={{ fontSize:9, lineHeight:1.3 }}>&nbsp;</div>
+        <div style={{ fontSize:11, fontWeight:700, color:'#6fcf97',
+          fontFamily:'Arial,sans-serif', letterSpacing:'0.06em' }}>EXPEC</div>
       </div>
     </div>
   );
@@ -1376,86 +1542,56 @@ function WasdeColHeader({ cols, B }) {
 function WasdeRow({ label, values, hl, expVal, editing, onExpec, B, rowIdx }) {
   const fmt = v => v == null
     ? '—'
-    : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
+    : Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
   const isEven = rowIdx % 2 === 0;
-  const rowBg  = hl ? `${B.cardGold}12` : isEven ? 'rgba(255,255,255,0.018)' : 'transparent';
-
-  // values[0]=2023/24  [1]=2024/25 MAR  [2]=2024/25 ABR  [3]=2025/26 MAR  [4]=2025/26 ABR★
+  const rowBg = hl ? `${B.cardGold}12` : isEven ? 'rgba(255,255,255,0.018)' : 'transparent';
+  const numBase = { fontFamily:"'Courier New',monospace", textAlign:'right',
+    paddingRight:8, display:'flex', alignItems:'center', justifyContent:'flex-end' };
   return (
-    <div style={{ display: 'flex', alignItems: 'center', background: rowBg,
-      borderBottom: `1px solid ${hl ? B.cardGold + '1a' : 'rgba(255,255,255,0.03)'}`,
-      minHeight: hl ? 38 : 30 }}>
-      {/* Rótulo */}
-      <div style={{ width: CW.label, flexShrink: 0,
-        fontSize: hl ? 12 : 11, fontFamily: 'Arial,sans-serif',
-        fontWeight: hl ? 700 : 400, color: hl ? B.cardGold : '#b8ccb8',
-        letterSpacing: hl ? '0.06em' : '0.01em',
-        textTransform: hl ? 'uppercase' : 'none',
-        paddingLeft: 16 }}>{label}</div>
-
-      {/* 2023/24 */}
-      <div style={{ width: CW.h0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
-        fontFamily: "'Courier New',monospace", fontSize: 11,
-        color: hl ? '#888' : '#555', fontWeight: hl ? 500 : 400 }}>{fmt(values[0])}</div>
-
-      {/* 2024/25 MAR */}
-      <div style={{ width: CW.h1, flexShrink: 0, textAlign: 'right', paddingRight: 8,
-        fontFamily: "'Courier New',monospace", fontSize: 11,
-        color: hl ? '#999' : '#666', fontWeight: hl ? 500 : 400 }}>{fmt(values[1])}</div>
-
-      {/* 2024/25 ABR — leve destaque */}
-      <div style={{ width: CW.h2 + 2, flexShrink: 0, textAlign: 'right', paddingRight: 8,
-        fontFamily: "'Courier New',monospace",
-        fontSize: hl ? 12 : 11,
-        color: hl ? '#c8a840' : '#7e6e38',
-        fontWeight: hl ? 600 : 400,
-        background: MID_BG, borderLeft: MID_BL, borderRight: MID_BL,
-        alignSelf: 'stretch', display: 'flex', alignItems: 'center',
-        justifyContent: 'flex-end' }}>{fmt(values[2])}</div>
-
-      <ColDivider color={`${B.cardGold}22`} />
-
-      {/* 2025/26 MAR */}
-      <div style={{ width: CW.p0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
-        fontFamily: "'Courier New',monospace",
-        fontSize: hl ? 13 : 11,
-        color: hl ? '#d4b555' : '#a08b44',
-        fontWeight: hl ? 600 : 400 }}>{fmt(values[3])}</div>
-
-      {/* 2025/26 ABR★ — destaque principal */}
-      <div style={{ width: CW.p1 + 2, flexShrink: 0, textAlign: 'right', paddingRight: 10,
-        fontFamily: "'Courier New',monospace",
-        fontSize: hl ? 16 : 13,
-        color: hl ? '#ffffff' : '#ddd4bc',
-        fontWeight: hl ? 700 : 600,
-        background: CUR_BG, borderLeft: CUR_BL, borderRight: CUR_BL,
-        alignSelf: 'stretch', display: 'flex', alignItems: 'center',
-        justifyContent: 'flex-end' }}>{fmt(values[4])}</div>
-
-      <ColDivider color="#6fcf9722" />
-
+    <div style={{ display:'grid', gridTemplateColumns:GRID_COLS, alignItems:'stretch',
+      background:rowBg, minHeight:hl?38:32,
+      borderBottom:`1px solid ${hl?B.cardGold+'1a':'rgba(255,255,255,0.03)'}` }}>
+      {/* Label */}
+      <div style={{ gridColumn:GC.label, paddingLeft:16,
+        fontSize:hl?12:11, fontFamily:'Arial,sans-serif', fontWeight:hl?700:400,
+        color:hl?B.cardGold:'#b8ccb8', letterSpacing:hl?'0.06em':'0.01em',
+        textTransform:hl?'uppercase':'none',
+        display:'flex', alignItems:'center',
+        borderLeft:`3px solid ${hl?B.cardGold:'transparent'}`,
+      }}>{label}</div>
+      {/* h0 */}
+      <div style={{ gridColumn:GC.h0, ...numBase, fontSize:11, color:hl?'#999':'#666', fontWeight:hl?500:400 }}>{fmt(values[0])}</div>
+      {/* h1 */}
+      <div style={{ gridColumn:GC.h1, ...numBase, fontSize:11, color:hl?'#aaa':'#777', fontWeight:hl?500:400 }}>{fmt(values[1])}</div>
+      {/* h2 */}
+      <div style={{ gridColumn:GC.h2, ...numBase, fontSize:hl?12:11,
+        color:hl?'#c8a840':'#7e6e38', fontWeight:hl?600:400, background:MID_BG }}>{fmt(values[2])}</div>
+      {/* divider */}
+      <div style={{ gridColumn:GC.div1, background:MID_BG,
+        borderLeft:`1px solid ${B.cardGold}22`, borderRight:`1px solid ${B.cardGold}22` }} />
+      {/* p0 */}
+      <div style={{ gridColumn:GC.p0, ...numBase, fontSize:hl?12:11,
+        color:hl?'#d4a830':'#9e8060', fontWeight:hl?600:400 }}>{fmt(values[3])}</div>
+      {/* p1 */}
+      <div style={{ gridColumn:GC.p1, ...numBase, paddingRight:10,
+        fontSize:hl?16:13, color:hl?'#ffffff':'#ddd4bc', fontWeight:hl?700:600,
+        background:CUR_BG }}>{fmt(values[4])}</div>
+      {/* divider */}
+      <div style={{ gridColumn:GC.div2, borderLeft:'1px solid rgba(111,207,151,0.15)' }} />
       {/* EXPEC */}
-      <div style={{ width: CW.ex, flexShrink: 0, textAlign: 'right', paddingRight: 8 }}>
+      <div style={{ gridColumn:GC.ex, ...numBase }}>
         {editing ? (
           <input type="text"
             defaultValue={expVal != null ? String(expVal).replace('.', ',') : ''}
-            onBlur={e => {
-              const num = parseFloat(e.target.value.replace(',', '.'));
-              onExpec && onExpec(label, isNaN(num) ? null : num);
-            }}
-            style={{ width: 54, textAlign: 'right', fontSize: 12,
-              background: '#6fcf9715', border: '1px solid #6fcf9755',
-              borderRadius: 2, color: '#6fcf97',
-              fontFamily: "'Courier New',monospace",
-              padding: '2px 4px', outline: 'none' }}
+            onBlur={e => { const n=parseFloat(e.target.value.replace(',','.')); onExpec&&onExpec(label,isNaN(n)?null:n); }}
+            style={{ width:54, textAlign:'right', fontSize:12, background:'#6fcf9715',
+              border:'1px solid #6fcf9755', borderRadius:2, color:'#6fcf97',
+              fontFamily:"'Courier New',monospace", padding:'2px 4px', outline:'none' }}
             placeholder="—" />
         ) : (
-          <div style={{ fontFamily: "'Courier New',monospace",
-            fontSize: hl ? 14 : 12,
-            color: expVal != null ? '#6fcf97' : 'rgba(111,207,151,0.18)',
-            fontWeight: hl ? 700 : 400 }}>
-            {expVal != null ? fmt(expVal) : '—'}
+          <div style={{ fontFamily:"'Courier New',monospace", fontSize:hl?14:12,
+            color:expVal!=null?'#6fcf97':'rgba(111,207,151,0.18)', fontWeight:hl?700:400 }}>
+            {expVal!=null?fmt(expVal):'—'}
           </div>
         )}
       </div>
@@ -1465,50 +1601,32 @@ function WasdeRow({ label, values, hl, expVal, editing, onExpec, B, rowIdx }) {
 
 function WasdeSection({ title, rows, cols, expec, onExpec, brand, editing }) {
   const B = brand || BRANDS.granara;
+  const s = (col, color, size, extra) => (
+    <div style={{ gridColumn:col, textAlign:'right', paddingRight:8, fontSize:size||8,
+      color, fontFamily:'Arial,sans-serif',
+      display:'flex', alignItems:'center', justifyContent:'flex-end', ...(extra||{}) }} />
+  );
   return (
-    <div style={{ marginBottom: 0 }}>
-      <div style={{
-        display: 'flex', alignItems: 'stretch',
-        background: `linear-gradient(90deg,${B.cardMid},${B.cardBg}cc)`,
-        borderTop: `2px solid ${B.cardGold}22`,
-        borderBottom: `1px solid ${B.cardGold}33`,
-        borderLeft: `3px solid ${B.cardGold}`,
-      }}>
-        <div style={{
-          width: CW_LABEL_TOTAL - 3, flexShrink: 0,
-          fontSize: 11, fontWeight: 700, color: B.cardGold,
-          letterSpacing: '0.16em', fontFamily: "'Cinzel',serif",
-          padding: '7px 0 7px 13px', display: 'flex', alignItems: 'center',
+    <div style={{ marginBottom:0 }}>
+      <div style={{ display:'grid', gridTemplateColumns:GRID_COLS, alignItems:'stretch',
+        background:`linear-gradient(90deg,${B.cardMid},${B.cardBg}cc)`,
+        borderTop:`2px solid ${B.cardGold}22`, borderBottom:`1px solid ${B.cardGold}33` }}>
+        {/* Label */}
+        <div style={{ gridColumn:GC.label,
+          fontSize:11, fontWeight:700, color:B.cardGold,
+          letterSpacing:'0.16em', fontFamily:"'Cinzel',serif",
+          padding:'7px 0 7px 13px', display:'flex', alignItems:'center',
+          borderLeft:`3px solid ${B.cardGold}`,
         }}>{title}</div>
-
-        <div style={{ width: CW.h0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
-          fontSize: 8, color: `${B.cardGold}44`, fontFamily: 'Arial,sans-serif',
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[0]?.month}</div>
-        <div style={{ width: CW.h1, flexShrink: 0, textAlign: 'right', paddingRight: 8,
-          fontSize: 8, color: `${B.cardGold}55`, fontFamily: 'Arial,sans-serif',
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[1]?.month}</div>
-        <div style={{ width: CW.h2 + 2, flexShrink: 0, textAlign: 'right', paddingRight: 8,
-          fontSize: 9, color: `${B.cardGold}77`, fontFamily: 'Arial,sans-serif',
-          background: MID_BG, borderLeft: MID_BL, borderRight: MID_BL,
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[2]?.month}</div>
-
-        <ColDivider color={`${B.cardGold}22`} />
-
-        <div style={{ width: CW.p0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
-          fontSize: 9, color: `${B.cardGold}99`, fontFamily: 'Arial,sans-serif',
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[3]?.month}</div>
-        <div style={{ width: CW.p1 + 2, flexShrink: 0, textAlign: 'right', paddingRight: 10,
-          fontSize: 10, fontWeight: 700, color: B.cardGold, fontFamily: 'Arial,sans-serif',
-          background: CUR_BG, borderLeft: CUR_BL, borderRight: CUR_BL,
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[4]?.month}</div>
-
-        <ColDivider color="#6fcf9722" />
-
-        <div style={{ width: CW.ex, flexShrink: 0, textAlign: 'right', paddingRight: 8,
-          fontSize: 9, color: '#6fcf9966', fontFamily: 'Arial,sans-serif',
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>EXPEC</div>
+        <div style={{ gridColumn:GC.h0, ...{textAlign:'right',paddingRight:8,fontSize:8,color:`${B.cardGold}44`,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'} }}>{cols[0]?.month}</div>
+        <div style={{ gridColumn:GC.h1, ...{textAlign:'right',paddingRight:8,fontSize:8,color:`${B.cardGold}55`,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'} }}>{cols[1]?.month}</div>
+        <div style={{ gridColumn:GC.h2, ...{textAlign:'right',paddingRight:8,fontSize:9,color:`${B.cardGold}77`,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'}, background:MID_BG }}>{cols[2]?.month}</div>
+        <div style={{ gridColumn:GC.div1, background:MID_BG }} />
+        <div style={{ gridColumn:GC.p0, ...{textAlign:'right',paddingRight:8,fontSize:9,color:`${B.cardGold}99`,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'} }}>{cols[3]?.month}</div>
+        <div style={{ gridColumn:GC.p1, ...{textAlign:'right',paddingRight:10,fontSize:10,fontWeight:700,color:B.cardGold,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'}, background:CUR_BG }}>{cols[4]?.month}</div>
+        <div style={{ gridColumn:GC.div2 }} />
+        <div style={{ gridColumn:GC.ex, ...{textAlign:'right',paddingRight:8,fontSize:9,color:'rgba(111,207,151,0.6)',fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'} }}>EXPEC</div>
       </div>
-
       {rows.map(({ label, values, hl }, i) => (
         <WasdeRow key={label} label={label} values={values} hl={hl}
           expVal={expec?.[label]} editing={editing}
@@ -1528,7 +1646,7 @@ function WasdeShell({ children, brand, logo, logoFooter, title, reportLabel, col
       overflow: 'hidden',
       boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
       display: 'inline-block',
-      minWidth: CW_LABEL_TOTAL + CW.h0 + CW.h1 + (CW.h2+2) + DIV_W + CW.p0 + (CW.p1+2) + DIV_W + CW.ex + 4,
+      minWidth: 634 + 4, // Grid total: 206+66+66+70+8+70+80+8+60 = 634
     }}>
       {/* Header */}
       <div style={{
@@ -1641,7 +1759,7 @@ function WasdeTab({ brand }) {
           const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
           if (!XLSX2) throw new Error('XLSX não disponível para .xls');
           const wb = XLSX2.read(data, {type:'array'});
-          p = parseWASDE(wb); // will fail gracefully — old parser removed
+          p = parseWASDE_XLS(wb);
         }
         setParsed(p);
         setStatus(`✓ WASDE carregado`);
