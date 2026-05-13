@@ -1499,7 +1499,7 @@ function parseWASDE(xmlText) {
 // ── Layout CSS Grid — alinhamento garantido ──────────────────────────────────
 // Uma única string de template, compartilhada por TODOS os componentes.
 // Colunas: label | h0 | h1 | h2(fundo suave) | div | p0 | p1(fundo forte) | div | ex
-const GRID_COLS = '206px 66px 66px 70px 8px 70px 80px 8px 60px';
+const GRID_COLS = '206px 66px 66px 70px 8px 78px 96px 8px 60px';
 const GC = { label:1, h0:2, h1:3, h2:4, div1:5, p0:6, p1:7, div2:8, ex:9 };
 const MID_BG = 'rgba(175,150,93,0.07)';
 const CUR_BG = 'rgba(175,150,93,0.13)';
@@ -1574,7 +1574,7 @@ function WasdeRow({ label, values, hl, expVal, editing, onExpec, B, rowIdx }) {
         color:hl?'#d4a830':'#9e8060', fontWeight:hl?600:400 }}>{fmt(values[3])}</div>
       {/* p1 */}
       <div style={{ gridColumn:GC.p1, ...numBase, paddingRight:10,
-        fontSize:hl?16:13, color:hl?'#ffffff':'#ddd4bc', fontWeight:hl?700:600,
+        fontSize:hl?14:13, color:hl?'#ffffff':'#ddd4bc', fontWeight:hl?700:600,
         background:CUR_BG }}>{fmt(values[4])}</div>
       {/* divider */}
       <div style={{ gridColumn:GC.div2, borderLeft:'1px solid rgba(111,207,151,0.15)' }} />
@@ -1646,7 +1646,7 @@ function WasdeShell({ children, brand, logo, logoFooter, title, reportLabel, col
       overflow: 'hidden',
       boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
       display: 'inline-block',
-      minWidth: 634 + 4, // Grid total: 206+66+66+70+8+70+80+8+60 = 634
+      minWidth: 658 + 4, // Grid total: 206+66+66+70+8+78+96+8+60 = 658
     }}>
       {/* Header */}
       <div style={{
