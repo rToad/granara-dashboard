@@ -709,45 +709,55 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
   );
 }
 
-// PNG download — usa html2canvas (melhor suporte a CORS e fontes)
+// PNG download — usa dom-to-image (suporte completo a CSS Grid)
 async function downloadCardPNG(elementId, filename) {
   const el = document.getElementById(elementId);
   if (!el) { alert('Elemento não encontrado: ' + elementId); return; }
 
-  // Carrega html2canvas se necessário
-  if (!window.html2canvas) {
+  // dom-to-image suporta CSS Grid nativamente
+  if (!window.domtoimage) {
     await new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js';
       s.onload = resolve;
-      s.onerror = () => reject(new Error('Falha ao carregar html2canvas'));
+      s.onerror = () => reject(new Error('Falha ao carregar dom-to-image'));
       document.head.appendChild(s);
     });
   }
 
-  // Aguarda dois frames para garantir que o layout está estável
+  // Aguarda dois frames para layout estável
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  const canvas = await window.html2canvas(el, {
-    scale: 2,
-    useCORS: true,
-    allowTaint: true,
-    backgroundColor: null,
-    logging: false,
-    imageTimeout: 5000,
-    onclone: (doc) => {
-      // Garante que fontes inline sejam aplicadas na cópia
-      const style = doc.createElement('style');
-      style.textContent = `* { font-family: 'Arial', sans-serif; }`;
-      doc.head.appendChild(style);
-    },
-  });
+  // Inline logos como base64 para evitar CORS
+  const imgs = [...el.querySelectorAll('img')];
+  const origSrcs = imgs.map(i => i.src);
+  await Promise.all(imgs.map(async (img, i) => {
+    try {
+      const res = await fetch(img.src, { mode: 'cors' });
+      const blob = await res.blob();
+      await new Promise(r => {
+        const fr = new FileReader();
+        fr.onload = e => { img.src = e.target.result; r(); };
+        fr.readAsDataURL(blob);
+      });
+    } catch(_) {}
+  }));
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  const dataUrl = canvas.toDataURL('image/png');
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = dataUrl;
-  link.click();
+  try {
+    const dataUrl = await window.domtoimage.toPng(el, {
+      scale: 2,
+      bgcolor: null,
+      style: { margin: '0' },
+    });
+    if (!dataUrl || dataUrl === 'data:,') throw new Error('Imagem vazia gerada');
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = dataUrl;
+    link.click();
+  } finally {
+    imgs.forEach((img, i) => { img.src = origSrcs[i]; });
+  }
 }
 
 function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, salesDate, brand }) {
