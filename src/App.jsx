@@ -993,6 +993,118 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
 }
 
 
+// ── WASDE Parser — Mês Anterior ──────────────────────────────────────────────
+// Extrai col4 de cada página (= projeção do mês anterior do ano vigente)
+// Retorna: { soja:{soyUS:{label:val}, soyWorld:{label:val}}, milho:{...}, trigo:{...}, monthLabel:'ABR' }
+function parseWASDE_XLS_PREV(workbook) {
+  const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
+  const aoa = name => {
+    const sheet = workbook.Sheets[name];
+    if (!sheet) return [];
+    return XLSX2.utils.sheet_to_json(sheet, { header:1, defval:null });
+  };
+  const toN = v => {
+    if (v == null || String(v).trim() === '' || String(v).trim() === 'NA') return null;
+    const f = parseFloat(String(v).replace(/,/g,''));
+    return isNaN(f) ? null : f;
+  };
+  const n = (rows, r, c) => toN(rows?.[r]?.[c]);
+  const str = (rows, r, c) => String(rows?.[r]?.[c] || '').trim();
+
+  const acToHa  = v => v == null ? null : Math.round(v * 0.404686 * 100) / 100;
+  const buToMtS = v => v == null ? null : Math.round(v / 36.7437  * 100) / 100;
+  const buToMtC = v => v == null ? null : Math.round(v / 39.368   * 100) / 100;
+  const buToMtW = v => v == null ? null : Math.round(v / 36.744   * 100) / 100;
+
+  const ptMon = {JAN:'JAN',FEB:'FEV',MAR:'MAR',APR:'ABR',MAY:'MAI',JUN:'JUN',
+                 JUL:'JUL',AUG:'AGO',SEP:'SET',OCT:'OUT',NOV:'NOV',DEC:'DEZ'};
+  const toMon = s => ptMon[(s||'').slice(0,3).toUpperCase()] || (s||'').slice(0,3);
+
+  // Month label = col4 month of the previous file (e.g. 'Apr' → 'ABR')
+  const p15 = aoa('Page 15');
+  const monthLabel = toMon(str(p15, 9, 4)); // col4 month
+
+  // US pages: col4 = projection current month of previous file
+  const c4 = (rows, r, fn) => fn(n(rows, r, 4));
+
+  // Soy US
+  const soyUS = {
+    'Área Plantada':  c4(p15, 12, acToHa),
+    'Área Colhida':   c4(p15, 13, acToHa),
+    'Produtividade':  c4(p15, 15, v => v),
+    'PRODUÇÃO':       c4(p15, 18, buToMtS),
+    'EXPORTAÇÃO':     c4(p15, 22, buToMtS),
+    'Esmagamento':    c4(p15, 21, buToMtS),
+    'IMPORTAÇÃO':     c4(p15, 19, buToMtS),
+    'ESTOQUE FINAL':  c4(p15, 26, buToMtS),
+  };
+
+  // Soy World — Page 28 col4 = 2025/26 Apr world data
+  // In April XLS, proj block: row pairs Apr/May. col3=Prod, col7=Exp, col8=EndStk
+  // For April file: r43=World Apr, r55=Brazil Apr, r53=Argentina Apr, r61=China Apr, r63=EU Apr
+  const p28 = aoa('Page 28');
+  const ws4 = (r, c) => n(p28, r, c);
+  const soyWorld = {
+    'MUNDO - PRODUÇÃO':      ws4(43, 3), 'MUNDO - CONSUMO':       ws4(43, 6),
+    'MUNDO - ESTOQUE FINAL': ws4(43, 8), 'BRASIL - PRODUÇÃO':     ws4(55, 3),
+    'BRASIL - EXPORTAÇÃO':   ws4(55, 7), 'ARGENTINA - PROD.':     ws4(53, 3),
+    'CHINA - IMPORT.':       ws4(61, 4), 'UE - IMPORTAÇÃO':       ws4(63, 4),
+  };
+
+  // Corn US
+  const p12 = aoa('Page 12');
+  const cornUS = {
+    'Área Plantada':  c4(p12, 32, acToHa),
+    'Área Colhida':   c4(p12, 33, acToHa),
+    'Produtividade':  c4(p12, 35, v => v),
+    'PRODUÇÃO':       c4(p12, 38, buToMtC),
+    'EXPORTAÇÃO':     c4(p12, 45, buToMtC),
+    'ESTOQUE FINAL':  c4(p12, 47, buToMtC),
+  };
+
+  // Corn World — Page 23 col4 = 2025/26 Apr
+  // In April file, Page 23 has 2025/26 proj with Apr/May alternating
+  // r11=World Apr, r23=Brazil Apr, r21=Argentina Apr, r29=Ukraine Apr, r39=China Apr (approx)
+  const p23 = aoa('Page 23');
+  const wc4 = (r, c) => n(p23, r, c);
+  const cornWorld = {
+    'MUNDO - PRODUÇÃO':    wc4(11, 3), 'MUNDO - CONSUMO':     wc4(11, 6),
+    'MUNDO - ESTOQUE F.':  wc4(11, 8), 'CHINA - PRODUÇÃO':    wc4(39, 3),
+    'CHINA - ESTOQUE F.':  wc4(39, 8), 'BRASIL - PRODUÇÃO':   wc4(23, 3),
+    'BRASIL - EXPORTAÇÃO': wc4(23, 7), 'UCRÂNIA - EXPORT.':   wc4(29, 7),
+    'ARGENTINA - PROD.':   wc4(21, 3), 'ARGENTINA - EXPORT.': wc4(21, 7),
+  };
+
+  // Wheat US
+  const p11 = aoa('Page 11');
+  const wheatUS = {
+    'PRODUÇÃO':      c4(p11, 17, buToMtW),
+    'EXPORTAÇÃO':    c4(p11, 24, buToMtW),
+    'ESTOQUE FINAL': c4(p11, 26, buToMtW),
+    'EUA - PRODUÇÃO':   c4(p11, 17, buToMtW),
+    'EUA - EXPORTAÇÃO': c4(p11, 24, buToMtW),
+  };
+
+  // Wheat World — Page 19 col4 = 2025/26 Apr
+  const p19 = aoa('Page 19');
+  const ww4 = (r, c) => n(p19, r, c);
+  const wheatWorld = {
+    'MUNDO - PRODUÇÃO':    ww4(11, 3), 'MUNDO - CONSUMO':     ww4(11, 6),
+    'MUNDO - ESTOQUE F.':  ww4(11, 8), 'EUA - PRODUÇÃO':      c4(p11, 17, buToMtW),
+    'EUA - EXPORTAÇÃO':    c4(p11, 24, buToMtW),
+    'BRASIL - IMPORTAÇÃO': ww4(37, 4), 'UCRÂNIA - EXPORT.':   ww4(31, 7),
+    'ARGENTINA - EXPORT.': ww4(21, 7), 'RUSSIA - EXPORT.':    ww4(29, 7),
+    'UE - EXPORTAÇÃO':     ww4(27, 7),
+  };
+
+  return {
+    monthLabel,
+    soja:  { soyUS, soyWorld },
+    milho: { cornUS, cornWorld },
+    trigo: { wheatUS, wheatWorld },
+  };
+}
+
 // ── WASDE Parser XLS (SheetJS workbook) ──────────────────────────────────────
 function parseWASDE_XLS(workbook) {
   const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
@@ -1029,18 +1141,18 @@ function parseWASDE_XLS(workbook) {
   const curMon  = toMon(str(p15,9,4)); // MAI
 
   const cols = [
-    { safra:safra0, month:curMon  }, // 2024/25 MAI
-    { safra:safra1, month:curMon  }, // 2025/26 MAI
-    { safra:safra1, month:curMon  }, // 2025/26 MAI (dup — sem mês anterior)
-    { safra:safra2, month:prevMon }, // 2026/27 ABR (NA)
-    { safra:safra2, month:curMon  }, // 2026/27 MAI ★
+    { safra:safra0, month:curMon  }, // h0: 2024/25 MAI
+    { safra:'',     month:''      }, // h1: mês anterior 2025/26 (preenchido pelo arquivo ant.)
+    { safra:safra1, month:curMon  }, // h2: 2025/26 MAI (estimativa atual) ← fundo suave
+    { safra:safra2, month:prevMon }, // p0: 2026/27 ABR (NA)
+    { safra:safra2, month:curMon  }, // p1: 2026/27 MAI ★
   ];
 
   // Helper: 5 valores [2024/25, 2025/26, 2025/26dup, null, 2026/27May]
   // col1=2024/25, col2=2025/26, col3=NA, col4=2026/27May
   const r5 = (rows, r, fn) => {
     const v1 = fn(n(rows,r,1)), v2 = fn(n(rows,r,2)), v4 = fn(n(rows,r,4));
-    return [v1, v2, v2, null, v4];
+    return [v1, null, v2, null, v4]; // h1=prev(null até carregar), h2=estimativa atual
   };
   const id = v => v; // identity for produtividade (sem conversão)
 
@@ -1063,7 +1175,7 @@ function parseWASDE_XLS(workbook) {
   // 2026/27 May: World=r42, Brazil=r54, Argentina=r52, China=r60, EU=r62
   // cols: c2=BegStk, c3=Prod, c4=Imp, c5=DomCrush, c6=DomTotal, c7=Exp, c8=EndStk
   const p28 = aoa('Page 28');
-  const ws = (r1, r2, r3, c) => [n(p28,r1,c), n(p28,r2,c), n(p28,r2,c), null, n(p28,r3,c)];
+  const ws = (r1, r2, r3, c) => [n(p28,r1,c), null, n(p28,r2,c), null, n(p28,r3,c)];
 
   const soyWorldRows = [
     { label:'MUNDO - PRODUÇÃO',      values:ws( 9,25,42,3), hl:true  },
@@ -1097,7 +1209,7 @@ function parseWASDE_XLS(workbook) {
   const p22 = aoa('Page 22');
   const p23 = aoa('Page 23');
   const wc = (r1,r2,r3, c22,c23) =>
-    [n(p22,r1,c22), n(p22,r2,c22), n(p22,r2,c22), null, n(p23,r3,c23)];
+    [n(p22,r1,c22), null, n(p22,r2,c22), null, n(p23,r3,c23)];
 
   const cornWorldRows = [
     { label:'MUNDO - PRODUÇÃO',    values:wc(10,34,11, 2,3), hl:true  },
@@ -1118,7 +1230,7 @@ function parseWASDE_XLS(workbook) {
   const p11 = aoa('Page 11');
   const wUS = (r, fn) => {
     const v1 = fn(n(p11,r,4)), v2 = fn(n(p11,r,6));
-    return [v1, v2, v2, null, null]; // sem 2026/27 nesta página
+    return [v1, null, v2, null, null]; // h1=prev(null), h2=estimativa atual
   };
 
   // ── WHEAT WORLD (Page 18 + Page 19) ──────────────────────────────────────
@@ -1130,7 +1242,7 @@ function parseWASDE_XLS(workbook) {
   const p18 = aoa('Page 18');
   const p19 = aoa('Page 19');
   const ww = (r1,r2,r3, c18,c19) =>
-    [n(p18,r1,c18), n(p18,r2,c18), n(p18,r2,c18), null, n(p19,r3,c19)];
+    [n(p18,r1,c18), null, n(p18,r2,c18), null, n(p19,r3,c19)];
 
   const wheatWorldRows = [
     { label:'MUNDO - PRODUÇÃO',    values:ww( 9,34,11, 2,3), hl:true  },
@@ -1733,14 +1845,17 @@ function WasdeTab({ brand }) {
   const logo       = B.logoHeader;
   const logoFooter = B.logoFooter;
 
-  const [parsed,   setParsed]  = useState(null);
-  const [status,   setStatus]  = useState('');
-  const [editing,  setEditing] = useState(false);
-  const [expec,    setExpec]   = useState({
+  const [parsed,     setParsed]    = useState(null);
+  const [prevData,   setPrevData]  = useState(null);
+  const [status,     setStatus]    = useState('');
+  const [statusPrev, setStatusPrev]= useState('');
+  const [editing,    setEditing]   = useState(false);
+  const [expec,      setExpec]     = useState({
     soyUS:{}, soyWorld:{}, cornUS:{}, cornWorld:{}, wheatWorld:{}
   });
   const [dl, setDl] = useState({});
-  const fileRef = useRef(null);
+  const fileRef     = useRef(null);
+  const fileRefPrev = useRef(null);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -1761,6 +1876,21 @@ function WasdeTab({ brand }) {
           const wb = XLSX2.read(data, {type:'array'});
           p = parseWASDE_XLS(wb);
         }
+        // Mescla dados do mês anterior (se disponível) em values[2]
+        if (prevData) {
+          ['soja','milho','trigo'].forEach(comm => {
+            if (p[comm]) {
+              // Atualiza header da coluna h2 com mês do arquivo anterior
+              p[comm].cols[1] = { safra: p[comm].cols[2].safra, month: prevData.monthLabel };
+              p[comm].sections?.forEach(sec => {
+                sec.rows.forEach(row => {
+                  const v = prevData[comm]?.[sec.key]?.[row.label];
+                  if (v != null) row.values[1] = v;
+                });
+              });
+            }
+          });
+        }
         setParsed(p);
         setStatus(`✓ WASDE carregado`);
       } catch(err) {
@@ -1773,6 +1903,49 @@ function WasdeTab({ brand }) {
     } else {
       reader.readAsArrayBuffer(file);
     }
+  };
+
+  // Carrega arquivo do mês anterior — extrai col4 de cada página
+  const handleFilePrev = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setStatusPrev('Processando...');
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = new Uint8Array(ev.target.result);
+        const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
+        if (!XLSX2) throw new Error('XLSX não disponível');
+        const wb = XLSX2.read(data, {type:'array'});
+        const pd = parseWASDE_XLS_PREV(wb);
+        setPrevData(pd);
+        setStatusPrev(`✓ ${pd.monthLabel} carregado`);
+        // Se arquivo principal já está carregado, re-aplica imediatamente
+        setParsed(prev => prev ? applyPrevData(prev, pd) : prev);
+      } catch(err) {
+        setStatusPrev(`✗ Erro: ${err.message}`);
+        console.error(err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // Re-aplica prevData quando carregado após o arquivo principal
+  const applyPrevData = (p, pd) => {
+    if (!p || !pd) return p;
+    const clone = JSON.parse(JSON.stringify(p));
+    ['soja','milho','trigo'].forEach(comm => {
+      if (clone[comm]) {
+        clone[comm].cols[1] = { safra: clone[comm].cols[2].safra, month: pd.monthLabel };
+        clone[comm].sections?.forEach(sec => {
+          sec.rows.forEach(row => {
+            const v = pd[comm]?.[sec.key]?.[row.label];
+            if (v != null) row.values[1] = v;
+          });
+        });
+      }
+    });
+    return clone;
   };
 
   const setE = (sec, label, val) =>
@@ -1838,6 +2011,26 @@ function WasdeTab({ brand }) {
               <div style={{fontSize:10, fontFamily:'monospace',
                 color:status.startsWith('✓')?'#6fcf97':status.startsWith('✗')?'#eb5757':G.cream+'88'}}>
                 {status}
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Segundo arquivo: mês anterior */}
+        <div>
+          <div style={{fontSize:9, color:G.gold, fontFamily:"'Cinzel',serif", letterSpacing:'0.1em', marginBottom:4}}>
+            MÊS ANTERIOR (OPCIONAL)
+          </div>
+          <div style={{display:'flex', gap:10, alignItems:'center'}}>
+            <button onClick={()=>fileRefPrev.current?.click()} style={{
+              background:'transparent', border:`1px solid ${G.gold}`, borderRadius:2,
+              color:G.gold, fontFamily:"'Cinzel',serif", fontSize:10, letterSpacing:'0.12em',
+              padding:'7px 14px', cursor:'pointer', fontWeight:'bold',
+            }}>⬆ CARREGAR MÊS ANT.</button>
+            <input ref={fileRefPrev} type="file" accept=".xls,.xlsx" onChange={handleFilePrev} style={{display:'none'}}/>
+            {statusPrev && (
+              <div style={{fontSize:10, fontFamily:'monospace',
+                color:statusPrev.startsWith('✓')?'#6fcf97':statusPrev.startsWith('✗')?'#eb5757':G.cream+'88'}}>
+                {statusPrev}
               </div>
             )}
           </div>
