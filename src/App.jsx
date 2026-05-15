@@ -709,7 +709,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
   );
 }
 
-// PNG download — testado: toBlob + createObjectURL é mais confiável que dataUrl direto
+// PNG download — testado: inline imgs antes de capturar resolve cross-origin taint
 async function downloadCardPNG(elementId, filename) {
   const el = document.getElementById(elementId);
   if (!el) { alert('Elemento não encontrado: ' + elementId); return; }
@@ -724,18 +724,43 @@ async function downloadCardPNG(elementId, filename) {
     });
   }
 
+  // Inline todas as <img> como base64 para evitar cross-origin taint
+  const imgs = [...el.querySelectorAll('img')];
+  const origSrcs = imgs.map(img => img.src);
+  await Promise.all(imgs.map(async (img) => {
+    if (!img.src || img.src.startsWith('data:')) return;
+    try {
+      const res = await fetch(img.src);
+      const blob = await res.blob();
+      await new Promise(r => {
+        const fr = new FileReader();
+        fr.onload = e => { img.src = e.target.result; r(); };
+        fr.readAsDataURL(blob);
+      });
+    } catch(_) {
+      // Fallback: pixel transparente para não travar a captura
+      img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    }
+  }));
+
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  // toBlob + createObjectURL: mais confiável que dataUrl longa para download
-  const blob = await window.domtoimage.toBlob(el, { scale: 2 });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = url;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  try {
+    const blob = await window.domtoimage.toBlob(el, { scale: 2 });
+    if (!blob || !(blob instanceof Blob) || blob.size < 100) {
+      throw new Error('Falha ao gerar imagem');
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } finally {
+    imgs.forEach((img, i) => { img.src = origSrcs[i]; });
+  }
 }
 
 function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, salesDate, brand }) {
