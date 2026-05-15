@@ -709,62 +709,31 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
   );
 }
 
-// PNG download — usa dom-to-image (suporte completo a CSS Grid)
+// PNG download — testado com CSS Grid, dom-to-image direto no elemento
 async function downloadCardPNG(elementId, filename) {
   const el = document.getElementById(elementId);
   if (!el) { alert('Elemento não encontrado: ' + elementId); return; }
 
-  // Carrega html-to-image via unpkg (suporte nativo a CSS Grid)
-  if (!window.htmlToImage) {
+  if (!window.domtoimage) {
     await new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = 'https://unpkg.com/html-to-image/dist/html-to-image.js';
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js';
       s.onload = resolve;
-      s.onerror = async () => {
-        // Fallback: dom-to-image
-        const s2 = document.createElement('script');
-        s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js';
-        s2.onload = resolve;
-        s2.onerror = () => reject(new Error('Falha ao carregar biblioteca PNG'));
-        document.head.appendChild(s2);
-      };
+      s.onerror = () => reject(new Error('Falha ao carregar dom-to-image'));
       document.head.appendChild(s);
     });
   }
 
+  // Aguarda layout estável
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  // Clona o elemento para fora de qualquer overflow:hidden
-  const rect = el.getBoundingClientRect();
-  const clone = el.cloneNode(true);
-  clone.style.position = 'fixed';
-  clone.style.top = '0';
-  clone.style.left = '0';
-  clone.style.width = rect.width + 'px';
-  clone.style.zIndex = '-9999';
-  clone.style.opacity = '0';
-  clone.style.pointerEvents = 'none';
-  document.body.appendChild(clone);
+  // Captura direta — dom-to-image funciona com CSS Grid dentro de overflow:hidden
+  const dataUrl = await window.domtoimage.toPng(el, { scale: 2 });
 
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-  try {
-    let dataUrl;
-    if (window.htmlToImage) {
-      dataUrl = await window.htmlToImage.toPng(clone, { pixelRatio: 2, cacheBust: true });
-    } else if (window.domtoimage) {
-      dataUrl = await window.domtoimage.toPng(clone, { scale: 2 });
-    } else {
-      throw new Error('Nenhuma biblioteca de captura disponível');
-    }
-
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = dataUrl;
-    link.click();
-  } finally {
-    document.body.removeChild(clone);
-  }
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = dataUrl;
+  link.click();
 }
 
 function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, salesDate, brand }) {
