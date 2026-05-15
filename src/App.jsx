@@ -709,7 +709,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
   );
 }
 
-// PNG download — testado com CSS Grid, dom-to-image direto no elemento
+// PNG download — testado: toBlob + createObjectURL é mais confiável que dataUrl direto
 async function downloadCardPNG(elementId, filename) {
   const el = document.getElementById(elementId);
   if (!el) { alert('Elemento não encontrado: ' + elementId); return; }
@@ -724,16 +724,18 @@ async function downloadCardPNG(elementId, filename) {
     });
   }
 
-  // Aguarda layout estável
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  // Captura direta — dom-to-image funciona com CSS Grid dentro de overflow:hidden
-  const dataUrl = await window.domtoimage.toPng(el, { scale: 2 });
-
+  // toBlob + createObjectURL: mais confiável que dataUrl longa para download
+  const blob = await window.domtoimage.toBlob(el, { scale: 2 });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.download = filename;
-  link.href = dataUrl;
+  link.href = url;
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, salesDate, brand }) {
