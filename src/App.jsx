@@ -170,8 +170,6 @@ function parseCropProgress(text) {
   const cornDented     = getSection("Corn Dented");
   const cornMatured    = getSection("Corn Mature");
   const cornHarvested  = getSection("Corn Harvested");
-  const cornCondMatch  = text.match(/Corn Condition[\s\S]*?18 States\s*\.+:\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/i);
-
   if (extract18States(cornPlanted))   result.corn.plantado        = extract18States(cornPlanted);
   if (extract18States(cornEmerged))   result.corn.emergido        = extract18States(cornEmerged);
   if (extract18States(cornDough))     result.corn.pastoso         = extract18States(cornDough);
@@ -179,22 +177,7 @@ function parseCropProgress(text) {
   if (extract18States(cornMatured))   result.corn.maduro          = extract18States(cornMatured);
   if (extract18States(cornHarvested)) result.corn.colhido         = extract18States(cornHarvested);
 
-  if (cornCondMatch) {
-    // VP, P, F, G, E → ruim=(VP+P), regular=F, bom=(G+E)
-    const vp = parseInt(cornCondMatch[1])||0, p  = parseInt(cornCondMatch[2])||0;
-    const f  = parseInt(cornCondMatch[3])||0;
-    const g  = parseInt(cornCondMatch[4])||0, e  = parseInt(cornCondMatch[5])||0;
-    // Previous week line
-    const prevMatch = text.match(/Previous week\s*\.+:\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)[\s\S]*?Previous year/i);
-    const pvp = prevMatch ? parseInt(prevMatch[1])||0 : 0;
-    const pp  = prevMatch ? parseInt(prevMatch[2])||0 : 0;
-    const pf  = prevMatch ? parseInt(prevMatch[3])||0 : 0;
-    const pg  = prevMatch ? parseInt(prevMatch[4])||0 : 0;
-    const pe  = prevMatch ? parseInt(prevMatch[5])||0 : 0;
-    result.corn.bom     = { anterior: String(pg+pe), atual: String(g+e) };
-    result.corn.regular = { anterior: String(pf),    atual: String(f)   };
-    result.corn.ruim    = { anterior: String(pvp+pp), atual: String(vp+p) };
-  }
+  Object.assign(result.corn, parseConditionBlock(text, "Corn Condition"));
 
   // Soy stages
   const soyPlanted   = getSection("Soybeans Planted");
@@ -203,8 +186,6 @@ function parseCropProgress(text) {
   const soySetting   = getSection("Soybeans Setting Pods");
   const soyLeafDrop  = getSection("Soybeans Dropping Leaves");
   const soyHarvested = getSection("Soybeans Harvested");
-  const soyCondMatch = text.match(/Soybean Condition[\s\S]*?18 States\s*\.+:\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/i);
-
   if (extract18States(soyPlanted))   result.soy.plantado    = extract18States(soyPlanted);
   if (extract18States(soyEmerged))   result.soy.emergido    = extract18States(soyEmerged);
   if (extract18States(soyBlooming))  result.soy.florescendo = extract18States(soyBlooming);
@@ -212,20 +193,53 @@ function parseCropProgress(text) {
   if (extract18States(soyLeafDrop))  result.soy.quedaFolhas = extract18States(soyLeafDrop);
   if (extract18States(soyHarvested)) result.soy.colhido     = extract18States(soyHarvested);
 
-  if (soyCondMatch) {
-    const vp=parseInt(soyCondMatch[1])||0, p=parseInt(soyCondMatch[2])||0;
-    const f=parseInt(soyCondMatch[3])||0;
-    const g=parseInt(soyCondMatch[4])||0, e=parseInt(soyCondMatch[5])||0;
-    const prevMatch = text.match(/Previous week\s*\.+:\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)[\s\S]{0,200}?Previous year/i);
-    const pvp=prevMatch?parseInt(prevMatch[1])||0:0, pp=prevMatch?parseInt(prevMatch[2])||0:0;
-    const pf=prevMatch?parseInt(prevMatch[3])||0:0;
-    const pg=prevMatch?parseInt(prevMatch[4])||0:0, pe=prevMatch?parseInt(prevMatch[5])||0:0;
-    result.soy.bom     = { anterior: String(pg+pe), atual: String(g+e) };
-    result.soy.regular = { anterior: String(pf),    atual: String(f)   };
-    result.soy.ruim    = { anterior: String(pvp+pp), atual: String(vp+p) };
-  }
+  Object.assign(result.soy, parseConditionBlock(text, "Soybean Condition"));
 
   return result;
+}
+
+// Extrai condições (Bom/Regular/Ruim) de um bloco específico, ancorando a busca
+// das linhas "Previous week" e "Previous year" APÓS o título do bloco — evita
+// pegar dados de outra cultura (ex.: soja herdando o "Previous week" do milho).
+// Captura: atual, semPassada (Previous week) e anoPassado (Previous year).
+function parseConditionBlock(text, title) {
+  const out = {};
+  // Localiza o título e recorta o texto a partir dele
+  const titleIdx = text.search(new RegExp(title, "i"));
+  if (titleIdx === -1) return out;
+  const block = text.slice(titleIdx);
+
+  // Linha "18 States" do bloco atual (primeira ocorrência após o título)
+  const cur = block.match(/18 States\s*\.+:\s*(\d+|-)\s+(\d+|-)\s+(\d+|-)\s+(\d+|-)\s+(\d+|-)/i);
+  if (!cur) return out;
+  const num = v => (v === "-" ? 0 : parseInt(v) || 0);
+  const vp = num(cur[1]), p = num(cur[2]), f = num(cur[3]), g = num(cur[4]), e = num(cur[5]);
+
+  // "Previous week" e "Previous year" — buscados DENTRO do bloco recortado,
+  // logo são sempre os da cultura correta. NA é tratado como vazio.
+  const pw = block.match(/Previous week\s*\.+:\s*(\d+|-|\(NA\))\s+(\d+|-|\(NA\))\s+(\d+|-|\(NA\))\s+(\d+|-|\(NA\))\s+(\d+|-|\(NA\))/i);
+  const py = block.match(/Previous year\s*\.+:\s*(\d+|-|\(NA\))\s+(\d+|-|\(NA\))\s+(\d+|-|\(NA\))\s+(\d+|-|\(NA\))\s+(\d+|-|\(NA\))/i);
+  const safe = (m, i) => {
+    if (!m) return null;
+    const v = m[i];
+    if (v === "-" ) return 0;
+    if (v.includes("NA")) return null;
+    return parseInt(v) || 0;
+  };
+  const sum = (m, a, b) => {
+    const va = safe(m, a), vb = safe(m, b);
+    if (va === null || vb === null) return "";
+    return String(va + vb);
+  };
+  const one = (m, i) => {
+    const v = safe(m, i);
+    return v === null ? "" : String(v);
+  };
+
+  out.bom     = { atual: String(g + e), semPassada: sum(pw, 4, 5), anoPassado: sum(py, 4, 5) };
+  out.regular = { atual: String(f),     semPassada: one(pw, 3),    anoPassado: one(py, 3)    };
+  out.ruim    = { atual: String(vp + p), semPassada: sum(pw, 1, 2), anoPassado: sum(py, 1, 2) };
+  return out;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -359,11 +373,22 @@ const SOY_STAGES_LABELS = {
   plantado:"PLANTADO", emergido:"EMERGIDO", florescendo:"FLORESCENDO",
   vaginando:"VAGINANDO", quedaFolhas:"QUEDA DAS FOLHAS", colhido:"COLHIDOS",
 };
+// dir: +1 → aumentar é POSITIVO (verde ao subir); -1 → aumentar é NEGATIVO (vermelho ao subir); 0 → neutro
 const CONDITIONS = [
-  {key:"bom",    label:"Bom / Excelente", color:"#6fcf97"},
-  {key:"regular",label:"Regular",         color:G.cream+"99"},
-  {key:"ruim",   label:"Ruim / Muito Ruim",color:"#eb5757"},
+  {key:"bom",    label:"Bom / Excelente",   color:"#6fcf97", dir:+1},
+  {key:"regular",label:"Regular",           color:G.cream+"99", dir:0},
+  {key:"ruim",   label:"Ruim / Muito Ruim", color:"#eb5757", dir:-1},
 ];
+
+// Cor da variação semana-a-semana conforme a direção semântica da categoria.
+// Ex.: Bom subiu → verde; Bom caiu → vermelho; Ruim subiu → vermelho; Regular → neutro.
+function condTrendColor(cond, prev, atual) {
+  const a = parseInt(atual), p = parseInt(prev);
+  if (isNaN(a) || isNaN(p) || cond.dir === 0 || a === p) return "#EFE8D8";
+  const subiu = a > p;
+  const positivo = cond.dir === +1 ? subiu : !subiu;
+  return positivo ? "#6fcf97" : "#eb5757";
+}
 
 function CropCard({label,icon,isSoy,data,onUpdate,cropDate}) {
   const stageLabels = isSoy ? SOY_STAGES_LABELS : CORN_STAGES_LABELS;
@@ -390,8 +415,9 @@ function CropCard({label,icon,isSoy,data,onUpdate,cropDate}) {
           {CONDITIONS.map(c=>(
             <div key={c.key} style={{marginBottom:6}}>
               <div style={{fontSize:9,color:c.color,fontFamily:"'Cinzel',serif",marginBottom:2}}>{c.label}</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 6px"}}>
-                <FField sm label="Ant. %" value={data[c.key]?.anterior||""} onChange={v=>onUpdate(c.key,"anterior",v)} />
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 6px"}}>
+                <FField sm label="Ano Pas." value={data[c.key]?.anoPassado||""} onChange={v=>onUpdate(c.key,"anoPassado",v)} />
+                <FField sm label="Sem. Pas." value={data[c.key]?.semPassada||""} onChange={v=>onUpdate(c.key,"semPassada",v)} />
                 <FField sm label="Atual %" value={data[c.key]?.atual||""} onChange={v=>onUpdate(c.key,"atual",v)} />
               </div>
             </div>
@@ -429,9 +455,9 @@ function CropCard({label,icon,isSoy,data,onUpdate,cropDate}) {
                   alignItems:"center",padding:"4px 0",borderBottom:`1px solid ${G.goldDark}22`}}>
                   <span style={{fontSize:10,fontFamily:"'Cinzel',serif",color:c.color}}>{c.label}</span>
                   <div style={{display:"flex",gap:6,fontFamily:"monospace",alignItems:"center"}}>
-                    <span style={{fontSize:10,color:G.cream+"55"}}>{data[c.key]?.anterior?data[c.key].anterior+"%":"—"}</span>
+                    <span style={{fontSize:10,color:G.cream+"55"}}>{data[c.key]?.semPassada?data[c.key].semPassada+"%":"—"}</span>
                     <span style={{color:G.goldDark}}>→</span>
-                    <span style={{fontSize:12,fontWeight:"bold",color:c.color}}>{data[c.key]?.atual?data[c.key].atual+"%":"—"}</span>
+                    <span style={{fontSize:12,fontWeight:"bold",color:condTrendColor(c,data[c.key]?.semPassada,data[c.key]?.atual)}}>{data[c.key]?.atual?data[c.key].atual+"%":"—"}</span>
                   </div>
                 </div>
               ))}
@@ -612,7 +638,15 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
 function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, brand }) {
   const B = brand || BRANDS.granara;
   const stageLabels = isSoy ? SOY_STAGES_LABELS : CORN_STAGES_LABELS;
-  const activeStages = Object.entries(stageLabels).filter(([k]) => data[k]?.atual || data[k]?.anoPassado);
+  // Estágio "plantado" some quando atinge 100% (plantio concluído) — mantém "emergido"
+  const plantioCompleto = parseInt(data.plantado?.atual) >= 100;
+  const activeStages = Object.entries(stageLabels).filter(([k]) => {
+    if (k === "plantado" && plantioCompleto) return false;
+    return data[k]?.atual || data[k]?.anoPassado;
+  });
+  const hasConditions = CONDITIONS.some(c => data[c.key]?.atual);
+  // Quando o plantio está concluído, as condições ganham destaque visual
+  const destaqueCondicoes = plantioCompleto && hasConditions;
 
   return (
     <CardShellExport logo={logo} logoFooter={logoFooter} brand={B}>
@@ -671,37 +705,48 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
         ))}
 
         {/* conditions */}
-        {CONDITIONS.some(c => data[c.key]?.atual) && (
+        {hasConditions && (
           <div style={{
-            background:B.sectionBg, border:"1px solid #AF965D22",
-            borderRadius:4, padding:"10px 14px", marginTop:6,
+            background:B.sectionBg, border:`1px solid ${destaqueCondicoes ? B.accent+"66" : "#AF965D22"}`,
+            borderRadius:4, padding: destaqueCondicoes ? "14px 16px" : "10px 14px",
+            marginTop:6,
+            boxShadow: destaqueCondicoes ? `0 0 0 1px ${B.accent}22` : "none",
           }}>
-            <div style={{fontSize:9, color:B.cardGold, letterSpacing:"0.15em",
-              marginBottom:8, borderBottom:"1px solid #AF965D33", paddingBottom:4}}>
-              CONDIÇÕES
+            <div style={{
+              fontSize: destaqueCondicoes ? 11 : 9, color:B.cardGold, letterSpacing:"0.15em",
+              marginBottom:8, borderBottom:"1px solid #AF965D33", paddingBottom:4,
+              display:"flex", justifyContent:"space-between", alignItems:"baseline",
+            }}>
+              <span>CONDIÇÕES DAS LAVOURAS</span>
+              <span style={{fontSize:8, color:B.cardGoldDim, letterSpacing:"0.08em"}}>ANO PAS. · SEM. PAS. · ATUAL</span>
             </div>
-            {CONDITIONS.map(c => (
-              <div key={c.key} style={{
-                display:"flex", justifyContent:"space-between", alignItems:"center",
-                padding:"5px 0", borderBottom:"1px solid #ffffff08",
-              }}>
-                <span style={{fontSize:14, color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#b8c8b8"}}>
-                  {c.label}
-                </span>
-                <div style={{display:"flex", gap:8, alignItems:"center", fontFamily:"monospace"}}>
-                  <span style={{fontSize:19, color:"#aaaaaa"}}>
-                    {data[c.key]?.anterior ? data[c.key].anterior+"%" : "—"}
+            {CONDITIONS.map(c => {
+              const ap = data[c.key]?.anoPassado;
+              const sp = data[c.key]?.semPassada;
+              const at = data[c.key]?.atual;
+              const trendCol = condTrendColor(c, sp, at);
+              return (
+                <div key={c.key} style={{
+                  display:"flex", justifyContent:"space-between", alignItems:"center",
+                  padding: destaqueCondicoes ? "7px 0" : "5px 0", borderBottom:"1px solid #ffffff08",
+                }}>
+                  <span style={{fontSize: destaqueCondicoes ? 15 : 14, color: c.color}}>
+                    {c.label}
                   </span>
-                  <span style={{color:B.cardGoldDim}}>→</span>
-                  <span style={{
-                    fontSize:24, fontWeight:"bold",
-                    color: c.key==="bom"?"#6fcf97": c.key==="ruim"?"#eb5757":"#ffffff",
-                  }}>
-                    {data[c.key]?.atual ? data[c.key].atual+"%" : "—"}
-                  </span>
+                  <div style={{display:"flex", gap:8, alignItems:"baseline", fontFamily:"monospace"}}>
+                    <span style={{fontSize:14, color:"#888888"}}>{ap ? ap+"%" : "—"}</span>
+                    <span style={{color:B.cardGoldDim, fontSize:11}}>·</span>
+                    <span style={{fontSize:17, color:"#bbbbbb"}}>{sp ? sp+"%" : "—"}</span>
+                    <span style={{color:B.cardGoldDim}}>→</span>
+                    <span style={{
+                      fontSize: destaqueCondicoes ? 27 : 24, fontWeight:"bold", color: trendCol,
+                    }}>
+                      {at ? at+"%" : "—"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -709,71 +754,45 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
   );
 }
 
-// PNG download — testado: inline imgs antes de capturar resolve cross-origin taint
-// dom-to-image-more embutido — sem dependência de CDN
-;(function(){ /*! dom-to-image-more 21-08-2024 */
-(l=>{let f=(()=>{let e=0;return{escape:function(e){return e.replace(/([.*+?^${}()|[]\/\\])/g,"\\$1")},isDataUrl:function(e){return-1!==e.search(/^(data:)/)},canvasToBlob:function(t){if(t.toBlob)return new Promise(function(e){t.toBlob(e)});return(r=>new Promise(function(e){var t=u(r.toDataURL().split(",")[1]),n=t.length,o=new Uint8Array(n);for(let e=0;e<n;e++)o[e]=t.charCodeAt(e);e(new Blob([o],{type:"image/png"}))}))(t)},resolveUrl:function(e,t){var n=document.implementation.createHTMLDocument(),o=n.createElement("base"),r=(n.head.appendChild(o),n.createElement("a"));return n.body.appendChild(r),o.href=t,r.href=e,r.href},getAndEncode:function(s){let e=a.impl.urlCache.find(function(e){return e.url===s});e||(e={url:s,promise:null},a.impl.urlCache.push(e));null===e.promise&&(a.impl.options.cacheBust&&(s+=(/\?/.test(s)?"&":"?")+(new Date).getTime()),e.promise=new Promise(function(t){let e=a.impl.options.httpTimeout,r=new XMLHttpRequest;if(r.onreadystatechange=function(){if(4===r.readyState)if(300<=r.status)n?t(n):l(`cannot fetch resource: ${s}, status: `+r.status);else{let e=new FileReader;e.onloadend=function(){t(e.result)},e.readAsDataURL(r.response)}},r.ontimeout=function(){n?t(n):l(`timeout of ${e}ms occured while fetching resource: `+s)},r.responseType="blob",r.timeout=e,0<a.impl.options.useCredentialsFilters.length&&(a.impl.options.useCredentials=0<a.impl.options.useCredentialsFilters.filter(e=>0<=s.search(e)).length),a.impl.options.useCredentials&&(r.withCredentials=!0),a.impl.options.corsImg&&0===s.indexOf("http")&&-1===s.indexOf(window.location.origin)){var i="POST"===(a.impl.options.corsImg.method||"GET").toUpperCase()?"POST":"GET";r.open(i,(a.impl.options.corsImg.url||"").replace("#{cors}",s),!0);let t=!1,n=a.impl.options.corsImg.headers||{},o=(Object.keys(n).forEach(function(e){-1!==n[e].indexOf("application/json")&&(t=!0),r.setRequestHeader(e,n[e])}),(e=>{try{return JSON.parse(JSON.stringify(e))}catch(e){l("corsImg.data is missing or invalid",e.toString())}})(a.impl.options.corsImg.data||""));Object.keys(o).forEach(function(e){"string"==typeof o[e]&&(o[e]=o[e].replace("#{cors}",s))}),r.send(t?JSON.stringify(o):o)}else r.open("GET",s,!0),r.send();let n;function l(e){console.error(e),t("")}a.impl.options.imagePlaceholder&&(i=a.impl.options.imagePlaceholder.split(/,/))&&i[1]&&(n=i[1])}));return e.promise},uid:function(){return"u"+("0000"+(Math.random()*Math.pow(36,4)<<0).toString(36)).slice(-4)+e++},delay:function(n){return function(t){return new Promise(function(e){setTimeout(function(){e(t)},n)})}},asArray:function(t){var n=[],o=t.length;for(let e=0;e<o;e++)n.push(t[e]);return n},escapeXhtml:function(e){return e.replace(/%/g,"%25").replace(/#/g,"%23").replace(/\n/g,"%0A")},makeImage:function(o){return"data:,"!==o?new Promise(function(e,t){let n=new Image;a.impl.options.useCredentials&&(n.crossOrigin="use-credentials"),n.onload=function(){window&&window.requestAnimationFrame?window.requestAnimationFrame(function(){e(n)}):e(n)},n.onerror=t,n.src=o}):Promise.resolve()},width:function(e){var t=i(e,"width");if(!isNaN(t))return t;var t=i(e,"border-left-width"),n=i(e,"border-right-width");return e.scrollWidth+t+n},height:function(e){var t=i(e,"height");if(!isNaN(t))return t;var t=i(e,"border-top-width"),n=i(e,"border-bottom-width");return e.scrollHeight+t+n},getWindow:t,isElement:r,isElementHostForOpenShadowRoot:function(e){return r(e)&&null!==e.shadowRoot},isShadowRoot:n,isInShadowRoot:o,isHTMLElement:function(e){return e instanceof t(e).HTMLElement},isHTMLCanvasElement:function(e){return e instanceof t(e).HTMLCanvasElement},isHTMLInputElement:function(e){return e instanceof t(e).HTMLInputElement},isHTMLImageElement:function(e){return e instanceof t(e).HTMLImageElement},isHTMLLinkElement:function(e){return e instanceof t(e).HTMLLinkElement},isHTMLScriptElement:function(e){return e instanceof t(e).HTMLScriptElement},isHTMLStyleElement:function(e){return e instanceof t(e).HTMLStyleElement},isHTMLTextAreaElement:function(e){return e instanceof t(e).HTMLTextAreaElement},isShadowSlotElement:function(e){return o(e)&&e instanceof t(e).HTMLSlotElement},isSVGElement:function(e){return e instanceof t(e).SVGElement},isSVGRectElement:function(e){return e instanceof t(e).SVGRectElement},isDimensionMissing:function(e){return isNaN(e)||e<=0}};function t(e){e=e?e.ownerDocument:void 0;return(e?e.defaultView:void 0)||l||window}function n(e){return e instanceof t(e).ShadowRoot}function o(e){return null!==e&&"getRootNode"in e&&n(e.getRootNode())}function r(e){return e instanceof t(e).Element}function i(t,n){if(t.nodeType===c){let e=m(t).getPropertyValue(n);if("px"===e.slice(-2))return e=e.slice(0,-2),parseFloat(e)}return NaN}})(),r=(()=>{let o=/url\(['"]?([^'"]+?)['"]?\)/g;return{inlineAll:function(t,o,r){if(!e(t))return Promise.resolve(t);return Promise.resolve(t).then(n).then(function(e){let n=Promise.resolve(t);return e.forEach(function(t){n=n.then(function(e){return i(e,t,o,r)})}),n})},shouldProcess:e,impl:{readUrls:n,inline:i}};function e(e){return-1!==e.search(o)}function n(e){for(var t,n=[];null!==(t=o.exec(e));)n.push(t[1]);return n.filter(function(e){return!f.isDataUrl(e)})}function i(n,o,t,e){return Promise.resolve(o).then(function(e){return t?f.resolveUrl(e,t):e}).then(e||f.getAndEncode).then(function(e){return n.replace((t=o,new RegExp(`(url\\(['"]?)(${f.escape(t)})(['"]?\\))`,"g")),`$1${e}$3`);var t})}})(),e={resolveAll:function(){return t().then(function(e){return Promise.all(e.map(function(e){return e.resolve()}))}).then(function(e){return e.join("\n")})},impl:{readAll:t}};function t(){return Promise.resolve(f.asArray(document.styleSheets)).then(function(e){let n=[];return e.forEach(function(t){if("cssRules"in Object.getPrototypeOf(t))try{f.asArray(t.cssRules||[]).forEach(n.push.bind(n))}catch(e){console.error("domtoimage: Error while reading CSS rules from "+t.href,e.toString())}}),n}).then(function(e){return e.filter(function(e){return e.type===CSSRule.FONT_FACE_RULE}).filter(function(e){return r.shouldProcess(e.style.getPropertyValue("src"))})}).then(function(e){return e.map(t)});function t(t){return{resolve:function(){var e=(t.parentStyleSheet||{}).href;return r.inlineAll(t.cssText,e)},src:function(){return t.style.getPropertyValue("src")}}}}let n={inlineAll:function t(e){if(!f.isElement(e))return Promise.resolve(e);return n(e).then(function(){return f.isHTMLImageElement(e)?o(e).inline():Promise.all(f.asArray(e.childNodes).map(function(e){return t(e)}))});function n(o){let e=["background","background-image"],t=e.map(function(t){let e=o.style.getPropertyValue(t),n=o.style.getPropertyPriority(t);return e?r.inlineAll(e).then(function(e){o.style.setProperty(t,e,n)}):Promise.resolve()});return Promise.all(t).then(function(){return o})}},impl:{newImage:o}};function o(n){return{inline:function(e){if(f.isDataUrl(n.src))return Promise.resolve();return Promise.resolve(n.src).then(e||f.getAndEncode).then(function(t){return new Promise(function(e){n.onload=e,n.onerror=e,n.src=t})})}}}let s={copyDefaultStyles:!0,imagePlaceholder:void 0,cacheBust:!1,useCredentials:!1,useCredentialsFilters:[],httpTimeout:3e4,styleCaching:"strict",corsImg:void 0,adjustClonedNode:void 0},a={toSvg:d,toPng:function(e,t){return i(e,t).then(function(e){return e.toDataURL()})},toJpeg:function(e,t){return i(e,t).then(function(e){return e.toDataURL("image/jpeg",(t?t.quality:void 0)||1)})},toBlob:function(e,t){return i(e,t).then(f.canvasToBlob)},toPixelData:function(t,e){return i(t,e).then(function(e){return e.getContext("2d").getImageData(0,0,f.width(t),f.height(t)).data})},toCanvas:i,impl:{fontFaces:e,images:n,util:f,inliner:r,urlCache:[],options:{}}},c=("object"==typeof exports&&"object"==typeof module?module.exports=a:l.domtoimage=a,("undefined"!=typeof Node?Node.ELEMENT_NODE:void 0)||1),m=(void 0!==l?l.getComputedStyle:void 0)||("undefined"!=typeof window?window.getComputedStyle:void 0)||globalThis.getComputedStyle,u=(void 0!==l?l.atob:void 0)||("undefined"!=typeof window?window.atob:void 0)||globalThis.atob;function d(e,r){let t=a.impl.util.getWindow(e);var n=r=r||{};void 0===n.copyDefaultStyles?a.impl.options.copyDefaultStyles=s.copyDefaultStyles:a.impl.options.copyDefaultStyles=n.copyDefaultStyles,a.impl.options.imagePlaceholder=(void 0===n.imagePlaceholder?s:n).imagePlaceholder,a.impl.options.cacheBust=(void 0===n.cacheBust?s:n).cacheBust,a.impl.options.corsImg=(void 0===n.corsImg?s:n).corsImg,a.impl.options.useCredentials=(void 0===n.useCredentials?s:n).useCredentials,a.impl.options.useCredentialsFilters=(void 0===n.useCredentialsFilters?s:n).useCredentialsFilters,a.impl.options.httpTimeout=(void 0===n.httpTimeout?s:n).httpTimeout,a.impl.options.styleCaching=(void 0===n.styleCaching?s:n).styleCaching;let i=[];return Promise.resolve(e).then(function(e){if(e.nodeType===c)return e;var t=e,n=e.parentNode,o=document.createElement("span");return n.replaceChild(o,t),o.append(e),i.push({parent:n,child:t,wrapper:o}),o}).then(function(e){return function l(t,s,r,u){let e=s.filter;if(t===h||f.isHTMLScriptElement(t)||f.isHTMLStyleElement(t)||f.isHTMLLinkElement(t)||null!==r&&e&&!e(t))return Promise.resolve();return Promise.resolve(t).then(n).then(o).then(function(e){return c(e,a(t))}).then(i).then(function(e){return d(e,t)});function n(e){return f.isHTMLCanvasElement(e)?f.makeImage(e.toDataURL()):e.cloneNode(!1)}function o(e){return s.adjustClonedNode&&s.adjustClonedNode(t,e,!1),Promise.resolve(e)}function i(e){return s.adjustClonedNode&&s.adjustClonedNode(t,e,!0),Promise.resolve(e)}function a(e){return f.isElementHostForOpenShadowRoot(e)?e.shadowRoot:e}function c(n,e){let o=t(e),r=Promise.resolve();if(0!==o.length){let t=m(i(e));f.asArray(o).forEach(function(e){r=r.then(function(){return l(e,s,t,u).then(function(e){e&&n.appendChild(e)})})})}return r.then(function(){return n});function i(e){return f.isShadowRoot(e)?e.host:e}function t(t){if(f.isShadowSlotElement(t)){let e=t.assignedNodes();if(e&&0<e.length())return e}return t.childNodes}}function d(u,a){return!f.isElement(u)||f.isShadowSlotElement(a)?Promise.resolve(u):Promise.resolve().then(e).then(t).then(n).then(o).then(function(){return u});function e(){function o(e,t){t.font=e.font,t.fontFamily=e.fontFamily,t.fontFeatureSettings=e.fontFeatureSettings,t.fontKerning=e.fontKerning,t.fontSize=e.fontSize,t.fontStretch=e.fontStretch,t.fontStyle=e.fontStyle,t.fontVariant=e.fontVariant,t.fontVariantCaps=e.fontVariantCaps,t.fontVariantEastAsian=e.fontVariantEastAsian,t.fontVariantLigatures=e.fontVariantLigatures,t.fontVariantNumeric=e.fontVariantNumeric,t.fontVariationSettings=e.fontVariationSettings,t.fontWeight=e.fontWeight}function e(e,t){let n=m(e);n.cssText?(t.style.cssText=n.cssText,o(n,t.style)):(y(s,e,n,r,t),null===r&&(["inset-block","inset-block-start","inset-block-end"].forEach(e=>t.style.removeProperty(e)),["left","right","top","bottom"].forEach(e=>{t.style.getPropertyValue(e)&&t.style.setProperty(e,"0px")})))}e(a,u)}function t(){let s=f.uid();function t(r){let i=m(a,r),l=i.getPropertyValue("content");if(""!==l&&"none"!==l){let e=u.getAttribute("class")||"",t=(u.setAttribute("class",e+" "+s),document.createElement("style"));function n(){let e=`.${s}:`+r,t=(i.cssText?n:o)();return document.createTextNode(e+`{${t}}`);function n(){return`${i.cssText} content: ${l};`}function o(){let e=f.asArray(i).map(t).join("; ");return e+";";function t(e){let t=i.getPropertyValue(e),n=i.getPropertyPriority(e)?" !important":"";return e+": "+t+n}}}t.appendChild(n()),u.appendChild(t)}}[":before",":after"].forEach(function(e){t(e)})}function n(){f.isHTMLTextAreaElement(a)&&(u.innerHTML=a.value),f.isHTMLInputElement(a)&&u.setAttribute("value",a.value)}function o(){f.isSVGElement(u)&&(u.setAttribute("xmlns","http://www.w3.org/2000/svg"),f.isSVGRectElement(u))&&["width","height"].forEach(function(e){let t=u.getAttribute(e);t&&u.style.setProperty(e,t)})}}}(e,r,null,t)}).then(r.disableEmbedFonts?Promise.resolve(e):p).then(g).then(function(t){r.bgcolor&&(t.style.backgroundColor=r.bgcolor);r.width&&(t.style.width=r.width+"px");r.height&&(t.style.height=r.height+"px");r.style&&Object.keys(r.style).forEach(function(e){t.style[e]=r.style[e]});let e=null;"function"==typeof r.onclone&&(e=r.onclone(t));return Promise.resolve(e).then(function(){return t})}).then(function(e){let n=r.width||f.width(e),o=r.height||f.height(e);return Promise.resolve(e).then(function(e){return e.setAttribute("xmlns","http://www.w3.org/1999/xhtml"),(new XMLSerializer).serializeToString(e)}).then(f.escapeXhtml).then(function(e){var t=(f.isDimensionMissing(n)?' width="100%"':` width="${n}"`)+(f.isDimensionMissing(o)?' height="100%"':` height="${o}"`);return`<svg xmlns="http://www.w3.org/2000/svg"${(f.isDimensionMissing(n)?"":` width="${n}"`)+(f.isDimensionMissing(o)?"":` height="${o}"`)}><foreignObject${t}>${e}</foreignObject></svg>`}).then(function(e){return"data:image/svg+xml;charset=utf-8,"+e})}).then(function(e){for(;0<i.length;){var t=i.pop();t.parent.replaceChild(t.child,t.wrapper)}return e}).then(function(e){return a.impl.urlCache=[],(()=>{h&&(document.body.removeChild(h),h=null),v&&clearTimeout(v),v=setTimeout(()=>{v=null,w={}},2e4)})(),e})}function i(r,i){return d(r,i=i||{}).then(f.makeImage).then(function(e){var t="number"!=typeof i.scale?1:i.scale,n=((e,t)=>{let n=i.width||f.width(e),o=i.height||f.height(e);return f.isDimensionMissing(n)&&(n=f.isDimensionMissing(o)?300:2*o),f.isDimensionMissing(o)&&(o=n/2),(e=document.createElement("canvas")).width=n*t,e.height=o*t,i.bgcolor&&((t=e.getContext("2d")).fillStyle=i.bgcolor,t.fillRect(0,0,e.width,e.height)),e})(r,t),o=n.getContext("2d");return o.msImageSmoothingEnabled=!1,o.imageSmoothingEnabled=!1,e&&(o.scale(t,t),o.drawImage(e,0,0)),n})}let h=null;function p(n){return e.resolveAll().then(function(e){var t;return""!==e&&(t=document.createElement("style"),n.appendChild(t),t.appendChild(document.createTextNode(e))),n})}function g(e){return n.inlineAll(e).then(function(){return e})}function y(e,t,i,l,n){let s=a.impl.options.copyDefaultStyles?((t,e)=>{var n,o=(e=>("relaxed"!==t.styleCaching?e:e.filter((e,t,n)=>0===t||t===n.length-1)).join(">"))(e=(e=>{var t=[];do{if(e.nodeType===c){var n=e.tagName;if(t.push(n),E.includes(n))break}}while(e=e.parentNode);return t})(e));{if(w[o])return w[o];e=((e,t)=>{let n=e.body;do{var o=t.pop(),o=e.createElement(o);n.appendChild(o),n=o}while(0<t.length);return n.textContent="​",n})((n=(()=>{if(h)return h.contentWindow;t=document.characterSet||"UTF-8",e=(e=document.doctype)?(`<!DOCTYPE ${s(e.name)} ${s(e.publicId)} `+s(e.systemId)).trim()+">":"",(h=document.createElement("iframe")).id="domtoimage-sandbox-"+f.uid(),h.style.visibility="hidden",h.style.position="fixed",document.body.appendChild(h);var e,t,n=h,o="domtoimage-sandbox";try{return n.contentWindow.document.write(e+`<html><head><meta charset='${t}'><title>${o}</title></head><body></body></html>`),n.contentWindow}catch(e){}var r=document.createElement("meta");r.setAttribute("charset",t);try{var i=document.implementation.createHTMLDocument(o),l=(i.head.appendChild(r),e+i.documentElement.outerHTML);return n.setAttribute("srcdoc",l),n.contentWindow}catch(e){}return n.contentDocument.head.appendChild(r),n.contentDocument.title=o,n.contentWindow;function s(e){var t;return e?((t=document.createElement("div")).innerText=e,t.innerHTML):""}})()).document,e),n=((e,t)=>{let n={},o=e.getComputedStyle(t);return f.asArray(o).forEach(function(e){n[e]="width"===e||"height"===e?"auto":o.getPropertyValue(e)}),n})(n,e);var r=e;do{var i=r.parentElement;null!==i&&i.removeChild(r),r=i}while(r&&"BODY"!==r.tagName);return w[o]=n}})(e,t):{},u=n.style;f.asArray(i).forEach(function(e){var t,n=i.getPropertyValue(e),o=s[e],r=l?l.getPropertyValue(e):void 0;u.getPropertyValue(e)||(n!==o||l&&n!==r)&&(o=i.getPropertyPriority(e),r=u,n=n,o=o,t=0<=["background-clip"].indexOf(e=e),o?(r.setProperty(e,n,o),t&&r.setProperty("-webkit-"+e,n,o)):(r.setProperty(e,n),t&&r.setProperty("-webkit-"+e,n)))})}let v=null,w={},E=["ADDRESS","ARTICLE","ASIDE","BLOCKQUOTE","DETAILS","DIALOG","DD","DIV","DL","DT","FIELDSET","FIGCAPTION","FIGURE","FOOTER","FORM","H1","H2","H3","H4","H5","H6","HEADER","HGROUP","HR","LI","MAIN","NAV","OL","P","PRE","SECTION","SVG","TABLE","UL","math","svg","BODY","HEAD","HTML"]})(this);
-//# sourceMappingURL=dom-to-image-more.min.js.map })();
-
+// PNG download — usa html2canvas (melhor suporte a CORS e fontes)
 async function downloadCardPNG(elementId, filename) {
   const el = document.getElementById(elementId);
   if (!el) { alert('Elemento não encontrado: ' + elementId); return; }
 
-  // Inline imgs para evitar cross-origin taint
-  const imgs = [...el.querySelectorAll('img')];
-  const origSrcs = imgs.map(img => img.src);
-  await Promise.all(imgs.map(async (img) => {
-    if (!img.src || img.src.startsWith('data:')) return;
-    try {
-      const res = await fetch(img.src);
-      const blob = await res.blob();
-      await new Promise(r => {
-        const fr = new FileReader();
-        fr.onload = e => { img.src = e.target.result; r(); };
-        fr.readAsDataURL(blob);
-      });
-    } catch(_) {
-      img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-    }
-  }));
+  // Carrega html2canvas se necessário
+  if (!window.html2canvas) {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Falha ao carregar html2canvas'));
+      document.head.appendChild(s);
+    });
+  }
 
+  // Aguarda dois frames para garantir que o layout está estável
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  try {
-    // Usar toSvg + canvas manual para máxima compatibilidade
-    const svgDataUrl = await window.domtoimage.toSvg(el, { scale: 2 });
+  const canvas = await window.html2canvas(el, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: null,
+    logging: false,
+    imageTimeout: 5000,
+    onclone: (doc) => {
+      // Garante que fontes inline sejam aplicadas na cópia
+      const style = doc.createElement('style');
+      style.textContent = `* { font-family: 'Arial', sans-serif; }`;
+      doc.head.appendChild(style);
+    },
+  });
 
-    const W = el.offsetWidth * 2;
-    const H = el.offsetHeight * 2;
-
-    const blob = await new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width  = W;
-        canvas.height = H;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        canvas.toBlob(b => {
-          if (b && b.size > 100) resolve(b);
-          else reject(new Error(`Blob inválido (${b?.size ?? 0}b). SVG len=${svgDataUrl?.length}`));
-        }, 'image/png');
-      };
-      img.onerror = () => reject(new Error('Falha ao carregar SVG no Image'));
-      img.src = svgDataUrl;
-    });
-
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = url;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-  } finally {
-    imgs.forEach((img, i) => { img.src = origSrcs[i]; });
-  }
+  const dataUrl = canvas.toDataURL('image/png');
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = dataUrl;
+  link.click();
 }
 
 function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, salesDate, brand }) {
@@ -1019,118 +1038,6 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
 }
 
 
-// ── WASDE Parser — Mês Anterior ──────────────────────────────────────────────
-// Extrai col4 de cada página (= projeção do mês anterior do ano vigente)
-// Retorna: { soja:{soyUS:{label:val}, soyWorld:{label:val}}, milho:{...}, trigo:{...}, monthLabel:'ABR' }
-function parseWASDE_XLS_PREV(workbook) {
-  const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
-  const aoa = name => {
-    const sheet = workbook.Sheets[name];
-    if (!sheet) return [];
-    return XLSX2.utils.sheet_to_json(sheet, { header:1, defval:null });
-  };
-  const toN = v => {
-    if (v == null || String(v).trim() === '' || String(v).trim() === 'NA') return null;
-    const f = parseFloat(String(v).replace(/,/g,''));
-    return isNaN(f) ? null : f;
-  };
-  const n = (rows, r, c) => toN(rows?.[r]?.[c]);
-  const str = (rows, r, c) => String(rows?.[r]?.[c] || '').trim();
-
-  const acToHa  = v => v == null ? null : Math.round(v * 0.404686 * 100) / 100;
-  const buToMtS = v => v == null ? null : Math.round(v / 36.7437  * 100) / 100;
-  const buToMtC = v => v == null ? null : Math.round(v / 39.368   * 100) / 100;
-  const buToMtW = v => v == null ? null : Math.round(v / 36.744   * 100) / 100;
-
-  const ptMon = {JAN:'JAN',FEB:'FEV',MAR:'MAR',APR:'ABR',MAY:'MAI',JUN:'JUN',
-                 JUL:'JUL',AUG:'AGO',SEP:'SET',OCT:'OUT',NOV:'NOV',DEC:'DEZ'};
-  const toMon = s => ptMon[(s||'').slice(0,3).toUpperCase()] || (s||'').slice(0,3);
-
-  // Month label = col4 month of the previous file (e.g. 'Apr' → 'ABR')
-  const p15 = aoa('Page 15');
-  const monthLabel = toMon(str(p15, 9, 4)); // col4 month
-
-  // US pages: col4 = projection current month of previous file
-  const c4 = (rows, r, fn) => fn(n(rows, r, 4));
-
-  // Soy US
-  const soyUS = {
-    'Área Plantada':  c4(p15, 12, acToHa),
-    'Área Colhida':   c4(p15, 13, acToHa),
-    'Produtividade':  c4(p15, 15, v => v),
-    'PRODUÇÃO':       c4(p15, 18, buToMtS),
-    'EXPORTAÇÃO':     c4(p15, 22, buToMtS),
-    'Esmagamento':    c4(p15, 21, buToMtS),
-    'IMPORTAÇÃO':     c4(p15, 19, buToMtS),
-    'ESTOQUE FINAL':  c4(p15, 26, buToMtS),
-  };
-
-  // Soy World — Page 28 col4 = 2025/26 Apr world data
-  // In April XLS, proj block: row pairs Apr/May. col3=Prod, col7=Exp, col8=EndStk
-  // For April file: r43=World Apr, r55=Brazil Apr, r53=Argentina Apr, r61=China Apr, r63=EU Apr
-  const p28 = aoa('Page 28');
-  const ws4 = (r, c) => n(p28, r, c);
-  const soyWorld = {
-    'MUNDO - PRODUÇÃO':      ws4(43, 3), 'MUNDO - CONSUMO':       ws4(43, 6),
-    'MUNDO - ESTOQUE FINAL': ws4(43, 8), 'BRASIL - PRODUÇÃO':     ws4(55, 3),
-    'BRASIL - EXPORTAÇÃO':   ws4(55, 7), 'ARGENTINA - PROD.':     ws4(53, 3),
-    'CHINA - IMPORT.':       ws4(61, 4), 'UE - IMPORTAÇÃO':       ws4(63, 4),
-  };
-
-  // Corn US
-  const p12 = aoa('Page 12');
-  const cornUS = {
-    'Área Plantada':  c4(p12, 32, acToHa),
-    'Área Colhida':   c4(p12, 33, acToHa),
-    'Produtividade':  c4(p12, 35, v => v),
-    'PRODUÇÃO':       c4(p12, 38, buToMtC),
-    'EXPORTAÇÃO':     c4(p12, 45, buToMtC),
-    'ESTOQUE FINAL':  c4(p12, 47, buToMtC),
-  };
-
-  // Corn World — Page 23 col4 = 2025/26 Apr
-  // In April file, Page 23 has 2025/26 proj with Apr/May alternating
-  // r11=World Apr, r23=Brazil Apr, r21=Argentina Apr, r29=Ukraine Apr, r39=China Apr (approx)
-  const p23 = aoa('Page 23');
-  const wc4 = (r, c) => n(p23, r, c);
-  const cornWorld = {
-    'MUNDO - PRODUÇÃO':    wc4(11, 3), 'MUNDO - CONSUMO':     wc4(11, 6),
-    'MUNDO - ESTOQUE F.':  wc4(11, 8), 'CHINA - PRODUÇÃO':    wc4(39, 3),
-    'CHINA - ESTOQUE F.':  wc4(39, 8), 'BRASIL - PRODUÇÃO':   wc4(23, 3),
-    'BRASIL - EXPORTAÇÃO': wc4(23, 7), 'UCRÂNIA - EXPORT.':   wc4(29, 7),
-    'ARGENTINA - PROD.':   wc4(21, 3), 'ARGENTINA - EXPORT.': wc4(21, 7),
-  };
-
-  // Wheat US
-  const p11 = aoa('Page 11');
-  const wheatUS = {
-    'PRODUÇÃO':      c4(p11, 17, buToMtW),
-    'EXPORTAÇÃO':    c4(p11, 24, buToMtW),
-    'ESTOQUE FINAL': c4(p11, 26, buToMtW),
-    'EUA - PRODUÇÃO':   c4(p11, 17, buToMtW),
-    'EUA - EXPORTAÇÃO': c4(p11, 24, buToMtW),
-  };
-
-  // Wheat World — Page 19 col4 = 2025/26 Apr
-  const p19 = aoa('Page 19');
-  const ww4 = (r, c) => n(p19, r, c);
-  const wheatWorld = {
-    'MUNDO - PRODUÇÃO':    ww4(11, 3), 'MUNDO - CONSUMO':     ww4(11, 6),
-    'MUNDO - ESTOQUE F.':  ww4(11, 8), 'EUA - PRODUÇÃO':      c4(p11, 17, buToMtW),
-    'EUA - EXPORTAÇÃO':    c4(p11, 24, buToMtW),
-    'BRASIL - IMPORTAÇÃO': ww4(37, 4), 'UCRÂNIA - EXPORT.':   ww4(31, 7),
-    'ARGENTINA - EXPORT.': ww4(21, 7), 'RUSSIA - EXPORT.':    ww4(29, 7),
-    'UE - EXPORTAÇÃO':     ww4(27, 7),
-  };
-
-  return {
-    monthLabel,
-    soja:  { soyUS, soyWorld },
-    milho: { cornUS, cornWorld },
-    trigo: { wheatUS, wheatWorld },
-  };
-}
-
 // ── WASDE Parser XLS (SheetJS workbook) ──────────────────────────────────────
 function parseWASDE_XLS(workbook) {
   const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
@@ -1167,18 +1074,18 @@ function parseWASDE_XLS(workbook) {
   const curMon  = toMon(str(p15,9,4)); // MAI
 
   const cols = [
-    { safra:safra0, month:curMon  }, // h0: 2024/25 MAI
-    { safra:'',     month:''      }, // h1: mês anterior 2025/26 (preenchido pelo arquivo ant.)
-    { safra:safra1, month:curMon  }, // h2: 2025/26 MAI (estimativa atual) ← fundo suave
-    { safra:safra2, month:prevMon }, // p0: 2026/27 ABR (NA)
-    { safra:safra2, month:curMon  }, // p1: 2026/27 MAI ★
+    { safra:safra0, month:curMon  }, // 2024/25 MAI
+    { safra:safra1, month:curMon  }, // 2025/26 MAI
+    { safra:safra1, month:curMon  }, // 2025/26 MAI (dup — sem mês anterior)
+    { safra:safra2, month:prevMon }, // 2026/27 ABR (NA)
+    { safra:safra2, month:curMon  }, // 2026/27 MAI ★
   ];
 
   // Helper: 5 valores [2024/25, 2025/26, 2025/26dup, null, 2026/27May]
   // col1=2024/25, col2=2025/26, col3=NA, col4=2026/27May
   const r5 = (rows, r, fn) => {
     const v1 = fn(n(rows,r,1)), v2 = fn(n(rows,r,2)), v4 = fn(n(rows,r,4));
-    return [v1, null, v2, null, v4]; // h1=prev(null até carregar), h2=estimativa atual
+    return [v1, v2, v2, null, v4];
   };
   const id = v => v; // identity for produtividade (sem conversão)
 
@@ -1201,7 +1108,7 @@ function parseWASDE_XLS(workbook) {
   // 2026/27 May: World=r42, Brazil=r54, Argentina=r52, China=r60, EU=r62
   // cols: c2=BegStk, c3=Prod, c4=Imp, c5=DomCrush, c6=DomTotal, c7=Exp, c8=EndStk
   const p28 = aoa('Page 28');
-  const ws = (r1, r2, r3, c) => [n(p28,r1,c), null, n(p28,r2,c), null, n(p28,r3,c)];
+  const ws = (r1, r2, r3, c) => [n(p28,r1,c), n(p28,r2,c), n(p28,r2,c), null, n(p28,r3,c)];
 
   const soyWorldRows = [
     { label:'MUNDO - PRODUÇÃO',      values:ws( 9,25,42,3), hl:true  },
@@ -1235,7 +1142,7 @@ function parseWASDE_XLS(workbook) {
   const p22 = aoa('Page 22');
   const p23 = aoa('Page 23');
   const wc = (r1,r2,r3, c22,c23) =>
-    [n(p22,r1,c22), null, n(p22,r2,c22), null, n(p23,r3,c23)];
+    [n(p22,r1,c22), n(p22,r2,c22), n(p22,r2,c22), null, n(p23,r3,c23)];
 
   const cornWorldRows = [
     { label:'MUNDO - PRODUÇÃO',    values:wc(10,34,11, 2,3), hl:true  },
@@ -1256,7 +1163,7 @@ function parseWASDE_XLS(workbook) {
   const p11 = aoa('Page 11');
   const wUS = (r, fn) => {
     const v1 = fn(n(p11,r,4)), v2 = fn(n(p11,r,6));
-    return [v1, null, v2, null, null]; // h1=prev(null), h2=estimativa atual
+    return [v1, v2, v2, null, null]; // sem 2026/27 nesta página
   };
 
   // ── WHEAT WORLD (Page 18 + Page 19) ──────────────────────────────────────
@@ -1268,7 +1175,7 @@ function parseWASDE_XLS(workbook) {
   const p18 = aoa('Page 18');
   const p19 = aoa('Page 19');
   const ww = (r1,r2,r3, c18,c19) =>
-    [n(p18,r1,c18), null, n(p18,r2,c18), null, n(p19,r3,c19)];
+    [n(p18,r1,c18), n(p18,r2,c18), n(p18,r2,c18), null, n(p19,r3,c19)];
 
   const wheatWorldRows = [
     { label:'MUNDO - PRODUÇÃO',    values:ww( 9,34,11, 2,3), hl:true  },
@@ -1634,44 +1541,58 @@ function parseWASDE(xmlText) {
 }
 // ── Constantes de layout ─────────────────────────────────────────────────────
 // 7 colunas: [2023/24] [2024/25 MAR] [2024/25 ABR] [EXPEC₂₄] | [2025/26 MAR] [2025/26 ABR★] | [EXPEC₂₅]
-// ── Layout CSS Grid — alinhamento garantido ──────────────────────────────────
-// Uma única string de template, compartilhada por TODOS os componentes.
-// Colunas: label | h0 | h1 | h2(fundo suave) | div | p0 | p1(fundo forte) | div | ex
-const GRID_COLS = '206px 66px 66px 70px 8px 78px 96px 8px 60px';
-const GC = { label:1, h0:2, h1:3, h2:4, div1:5, p0:6, p1:7, div2:8, ex:9 };
-const MID_BG = 'rgba(175,150,93,0.07)';
-const CUR_BG = 'rgba(175,150,93,0.13)';
+const CW = { label: 190, h0: 66, h1: 66, h2: 70, ex1: 56, p0: 70, p1: 80, ex: 60 };
+const CW_LABEL_TOTAL = CW.label + 16; // 206px — inclui paddingLeft das linhas de dados
+const DIV_W  = 8;
+const CUR_BG = 'rgba(175,150,93,0.13)';  // destaque coluna ABR atual (2025/26)
+const CUR_BL = 'inset 1px 0 rgba(175,150,93,0.30), inset -1px 0 rgba(175,150,93,0.30)'; // box-shadow — não afeta largura
+const MID_BG = 'rgba(175,150,93,0.06)';  // destaque leve coluna ABR (2024/25)
+const MID_BL = 'inset 1px 0 rgba(175,150,93,0.16), inset -1px 0 rgba(175,150,93,0.16)'; // box-shadow — não afeta largura
 
+function ColDivider({ color }) {
+  return (
+    <div style={{ width: DIV_W, flexShrink: 0, display: 'flex',
+      alignItems: 'stretch', justifyContent: 'center' }}>
+      <div style={{ width: 1, background: color }} />
+    </div>
+  );
+}
+
+// cols[0]=2023/24  cols[1]=2024/25 MAR  cols[2]=2024/25 ABR  cols[3]=2025/26 MAR  cols[4]=2025/26 ABR
 function WasdeColHeader({ cols, B }) {
-  const baseCell = (col, extra) => ({
-    gridColumn: col, display:'flex', alignItems:'flex-end', justifyContent:'flex-end',
-    textAlign:'right', paddingRight: col===GC.p1 ? 10 : 8,
-    paddingTop:7, paddingBottom:5, ...(extra||{}),
-  });
-  const safraStyle = { fontSize:8, color:`${B.cardGold}55`, fontFamily:'Arial,sans-serif', lineHeight:1.3 };
-  const cell = (col, safra, month, color, size, extra) => (
-    <div style={baseCell(col, { flexDirection:'column', alignItems:'flex-end', justifyContent:'flex-end', ...extra })}>
-      <div style={safraStyle}>{safra}</div>
-      <div style={{ fontSize:size||11, fontWeight:700, color, fontFamily:'Arial,sans-serif' }}>{month}</div>
+  const col = (w, safra, month, color, size, extra) => (
+    <div style={{ width: w, flexShrink: 0, textAlign: 'right',
+      paddingRight: 8, paddingTop: 7, paddingBottom: 5, ...(extra||{}) }}>
+      <div style={{ fontSize: 8, color: `${B.cardGold}55`,
+        fontFamily: 'Arial,sans-serif', lineHeight: 1.3 }}>{safra}</div>
+      <div style={{ fontSize: size||11, fontWeight: 700, color,
+        fontFamily: 'Arial,sans-serif' }}>{month}</div>
     </div>
   );
   return (
-    <div style={{ display:'grid', gridTemplateColumns:GRID_COLS,
-      background:'#001a17', borderBottom:`1px solid ${B.cardGold}44` }}>
-      <div style={{ gridColumn:GC.label }} />
-      {cell(GC.h0, cols[0]?.safra, cols[0]?.month, `${B.cardGold}44`)}
-      {cell(GC.h1, cols[1]?.safra, cols[1]?.month, `${B.cardGold}66`)}
-      {cell(GC.h2, cols[2]?.safra, cols[2]?.month, `${B.cardGold}99`, 11, { background:MID_BG })}
-      <div style={{ gridColumn:GC.div1, background:MID_BG }} />
-      {cell(GC.p0, cols[3]?.safra, cols[3]?.month, `${B.cardGold}bb`)}
-      {cell(GC.p1, cols[4]?.safra, cols[4]?.month, B.cardGold, 14, { background:CUR_BG })}
-      <div style={{ gridColumn:GC.div2 }} />
-      <div style={{ gridColumn:GC.ex, display:'flex', flexDirection:'column',
-        alignItems:'flex-end', justifyContent:'flex-end',
-        paddingRight:8, paddingTop:7, paddingBottom:5 }}>
-        <div style={{ fontSize:9, lineHeight:1.3 }}>&nbsp;</div>
-        <div style={{ fontSize:11, fontWeight:700, color:'#6fcf97',
-          fontFamily:'Arial,sans-serif', letterSpacing:'0.06em' }}>EXPEC</div>
+    <div style={{ display: 'flex', alignItems: 'stretch',
+      borderBottom: `1px solid ${B.cardGold}44`, background: '#001a17' }}>
+      <div style={{ width: CW_LABEL_TOTAL, flexShrink: 0 }} />
+      {col(CW.h0, cols[0]?.safra, cols[0]?.month, `${B.cardGold}44`)}
+      {col(CW.h1, cols[1]?.safra, cols[1]?.month, `${B.cardGold}66`)}
+      {col(CW.h2, cols[2]?.safra, cols[2]?.month, `${B.cardGold}99`, 11,
+        { background: MID_BG, boxShadow: MID_BL })}
+      <ColDivider color={`${B.cardGold}22`} />
+      {col(CW.p0, cols[3]?.safra, cols[3]?.month, `${B.cardGold}bb`)}
+      <div style={{ width: CW.p1, flexShrink: 0, textAlign: 'right',
+        paddingRight: 10, paddingTop: 7, paddingBottom: 5,
+        background: CUR_BG, boxShadow: CUR_BL }}>
+        <div style={{ fontSize: 8, color: `${B.cardGold}99`,
+          fontFamily: 'Arial,sans-serif', lineHeight: 1.3 }}>{cols[4]?.safra}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: B.cardGold,
+          fontFamily: 'Arial,sans-serif', letterSpacing: '0.06em' }}>{cols[4]?.month}</div>
+      </div>
+      <ColDivider color="#6fcf9733" />
+      <div style={{ width: CW.ex, flexShrink: 0, textAlign: 'right',
+        paddingRight: 8, paddingTop: 7, paddingBottom: 5 }}>
+        <div style={{ fontSize: 9, lineHeight: 1.3 }}>&nbsp;</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#6fcf97',
+          fontFamily: 'Arial,sans-serif', letterSpacing: '0.06em' }}>EXPEC</div>
       </div>
     </div>
   );
@@ -1680,56 +1601,86 @@ function WasdeColHeader({ cols, B }) {
 function WasdeRow({ label, values, hl, expVal, editing, onExpec, B, rowIdx }) {
   const fmt = v => v == null
     ? '—'
-    : Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   const isEven = rowIdx % 2 === 0;
-  const rowBg = hl ? `${B.cardGold}12` : isEven ? 'rgba(255,255,255,0.018)' : 'transparent';
-  const numBase = { fontFamily:"'Courier New',monospace", textAlign:'right',
-    paddingRight:8, display:'flex', alignItems:'center', justifyContent:'flex-end' };
+  const rowBg  = hl ? `${B.cardGold}12` : isEven ? 'rgba(255,255,255,0.018)' : 'transparent';
+
+  // values[0]=2023/24  [1]=2024/25 MAR  [2]=2024/25 ABR  [3]=2025/26 MAR  [4]=2025/26 ABR★
   return (
-    <div style={{ display:'grid', gridTemplateColumns:GRID_COLS, alignItems:'stretch',
-      background:rowBg, minHeight:hl?38:32,
-      borderBottom:`1px solid ${hl?B.cardGold+'1a':'rgba(255,255,255,0.03)'}` }}>
-      {/* Label */}
-      <div style={{ gridColumn:GC.label, paddingLeft:16,
-        fontSize:hl?12:11, fontFamily:'Arial,sans-serif', fontWeight:hl?700:400,
-        color:hl?B.cardGold:'#b8ccb8', letterSpacing:hl?'0.06em':'0.01em',
-        textTransform:hl?'uppercase':'none',
-        display:'flex', alignItems:'center',
-        borderLeft:`3px solid ${hl?B.cardGold:'transparent'}`,
-      }}>{label}</div>
-      {/* h0 */}
-      <div style={{ gridColumn:GC.h0, ...numBase, fontSize:11, color:hl?'#999':'#666', fontWeight:hl?500:400 }}>{fmt(values[0])}</div>
-      {/* h1 */}
-      <div style={{ gridColumn:GC.h1, ...numBase, fontSize:11, color:hl?'#aaa':'#777', fontWeight:hl?500:400 }}>{fmt(values[1])}</div>
-      {/* h2 */}
-      <div style={{ gridColumn:GC.h2, ...numBase, fontSize:hl?12:11,
-        color:hl?'#c8a840':'#7e6e38', fontWeight:hl?600:400, background:MID_BG }}>{fmt(values[2])}</div>
-      {/* divider */}
-      <div style={{ gridColumn:GC.div1, background:MID_BG,
-        borderLeft:`1px solid ${B.cardGold}22`, borderRight:`1px solid ${B.cardGold}22` }} />
-      {/* p0 */}
-      <div style={{ gridColumn:GC.p0, ...numBase, fontSize:hl?12:11,
-        color:hl?'#d4a830':'#9e8060', fontWeight:hl?600:400 }}>{fmt(values[3])}</div>
-      {/* p1 */}
-      <div style={{ gridColumn:GC.p1, ...numBase, paddingRight:10,
-        fontSize:hl?14:13, color:hl?'#ffffff':'#ddd4bc', fontWeight:hl?700:600,
-        background:CUR_BG }}>{fmt(values[4])}</div>
-      {/* divider */}
-      <div style={{ gridColumn:GC.div2, borderLeft:'1px solid rgba(111,207,151,0.15)' }} />
+    <div style={{ display: 'flex', alignItems: 'center', background: rowBg,
+      borderBottom: `1px solid ${hl ? B.cardGold + '1a' : 'rgba(255,255,255,0.03)'}`,
+      minHeight: hl ? 38 : 30 }}>
+      {/* Rótulo */}
+      <div style={{ width: CW.label, flexShrink: 0,
+        fontSize: hl ? 12 : 11, fontFamily: 'Arial,sans-serif',
+        fontWeight: hl ? 700 : 400, color: hl ? B.cardGold : '#b8ccb8',
+        letterSpacing: hl ? '0.06em' : '0.01em',
+        textTransform: hl ? 'uppercase' : 'none',
+        paddingLeft: 16 }}>{label}</div>
+
+      {/* 2023/24 */}
+      <div style={{ width: CW.h0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+        fontFamily: "'Courier New',monospace", fontSize: 11,
+        color: hl ? '#888' : '#555', fontWeight: hl ? 500 : 400 }}>{fmt(values[0])}</div>
+
+      {/* 2024/25 MAR */}
+      <div style={{ width: CW.h1, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+        fontFamily: "'Courier New',monospace", fontSize: 11,
+        color: hl ? '#999' : '#666', fontWeight: hl ? 500 : 400 }}>{fmt(values[1])}</div>
+
+      {/* 2024/25 ABR — leve destaque */}
+      <div style={{ width: CW.h2, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+        fontFamily: "'Courier New',monospace",
+        fontSize: hl ? 12 : 11,
+        color: hl ? '#c8a840' : '#7e6e38',
+        fontWeight: hl ? 600 : 400,
+        background: MID_BG, boxShadow: MID_BL,
+        alignSelf: 'stretch', display: 'flex', alignItems: 'center',
+        justifyContent: 'flex-end' }}>{fmt(values[2])}</div>
+
+      <ColDivider color={`${B.cardGold}22`} />
+
+      {/* 2025/26 MAR */}
+      <div style={{ width: CW.p0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+        fontFamily: "'Courier New',monospace",
+        fontSize: hl ? 13 : 11,
+        color: hl ? '#d4b555' : '#a08b44',
+        fontWeight: hl ? 600 : 400 }}>{fmt(values[3])}</div>
+
+      {/* 2025/26 ABR★ — destaque principal */}
+      <div style={{ width: CW.p1, flexShrink: 0, textAlign: 'right', paddingRight: 10,
+        fontFamily: "'Courier New',monospace",
+        fontSize: hl ? 16 : 13,
+        color: hl ? '#ffffff' : '#ddd4bc',
+        fontWeight: hl ? 700 : 600,
+        background: CUR_BG, boxShadow: CUR_BL,
+        alignSelf: 'stretch', display: 'flex', alignItems: 'center',
+        justifyContent: 'flex-end' }}>{fmt(values[4])}</div>
+
+      <ColDivider color="#6fcf9722" />
+
       {/* EXPEC */}
-      <div style={{ gridColumn:GC.ex, ...numBase }}>
+      <div style={{ width: CW.ex, flexShrink: 0, textAlign: 'right', paddingRight: 8 }}>
         {editing ? (
           <input type="text"
             defaultValue={expVal != null ? String(expVal).replace('.', ',') : ''}
-            onBlur={e => { const n=parseFloat(e.target.value.replace(',','.')); onExpec&&onExpec(label,isNaN(n)?null:n); }}
-            style={{ width:54, textAlign:'right', fontSize:12, background:'#6fcf9715',
-              border:'1px solid #6fcf9755', borderRadius:2, color:'#6fcf97',
-              fontFamily:"'Courier New',monospace", padding:'2px 4px', outline:'none' }}
+            onBlur={e => {
+              const num = parseFloat(e.target.value.replace(',', '.'));
+              onExpec && onExpec(label, isNaN(num) ? null : num);
+            }}
+            style={{ width: 54, textAlign: 'right', fontSize: 12,
+              background: '#6fcf9715', border: '1px solid #6fcf9755',
+              borderRadius: 2, color: '#6fcf97',
+              fontFamily: "'Courier New',monospace",
+              padding: '2px 4px', outline: 'none' }}
             placeholder="—" />
         ) : (
-          <div style={{ fontFamily:"'Courier New',monospace", fontSize:hl?14:12,
-            color:expVal!=null?'#6fcf97':'rgba(111,207,151,0.18)', fontWeight:hl?700:400 }}>
-            {expVal!=null?fmt(expVal):'—'}
+          <div style={{ fontFamily: "'Courier New',monospace",
+            fontSize: hl ? 14 : 12,
+            color: expVal != null ? '#6fcf97' : 'rgba(111,207,151,0.18)',
+            fontWeight: hl ? 700 : 400 }}>
+            {expVal != null ? fmt(expVal) : '—'}
           </div>
         )}
       </div>
@@ -1739,32 +1690,50 @@ function WasdeRow({ label, values, hl, expVal, editing, onExpec, B, rowIdx }) {
 
 function WasdeSection({ title, rows, cols, expec, onExpec, brand, editing }) {
   const B = brand || BRANDS.granara;
-  const s = (col, color, size, extra) => (
-    <div style={{ gridColumn:col, textAlign:'right', paddingRight:8, fontSize:size||8,
-      color, fontFamily:'Arial,sans-serif',
-      display:'flex', alignItems:'center', justifyContent:'flex-end', ...(extra||{}) }} />
-  );
   return (
-    <div style={{ marginBottom:0 }}>
-      <div style={{ display:'grid', gridTemplateColumns:GRID_COLS, alignItems:'stretch',
-        background:`linear-gradient(90deg,${B.cardMid},${B.cardBg}cc)`,
-        borderTop:`2px solid ${B.cardGold}22`, borderBottom:`1px solid ${B.cardGold}33` }}>
-        {/* Label */}
-        <div style={{ gridColumn:GC.label,
-          fontSize:11, fontWeight:700, color:B.cardGold,
-          letterSpacing:'0.16em', fontFamily:"'Cinzel',serif",
-          padding:'7px 0 7px 13px', display:'flex', alignItems:'center',
-          borderLeft:`3px solid ${B.cardGold}`,
+    <div style={{ marginBottom: 0 }}>
+      <div style={{
+        display: 'flex', alignItems: 'stretch',
+        background: `linear-gradient(90deg,${B.cardMid},${B.cardBg}cc)`,
+        borderTop: `2px solid ${B.cardGold}22`,
+        borderBottom: `1px solid ${B.cardGold}33`,
+      }}>
+        <div style={{
+          width: CW_LABEL_TOTAL, flexShrink: 0,
+          fontSize: 11, fontWeight: 700, color: B.cardGold,
+          letterSpacing: '0.16em', fontFamily: "'Cinzel',serif",
+          padding: '7px 0 7px 13px', display: 'flex', alignItems: 'center',
+          borderLeft: `3px solid ${B.cardGold}`,
         }}>{title}</div>
-        <div style={{ gridColumn:GC.h0, ...{textAlign:'right',paddingRight:8,fontSize:8,color:`${B.cardGold}44`,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'} }}>{cols[0]?.month}</div>
-        <div style={{ gridColumn:GC.h1, ...{textAlign:'right',paddingRight:8,fontSize:8,color:`${B.cardGold}55`,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'} }}>{cols[1]?.month}</div>
-        <div style={{ gridColumn:GC.h2, ...{textAlign:'right',paddingRight:8,fontSize:9,color:`${B.cardGold}77`,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'}, background:MID_BG }}>{cols[2]?.month}</div>
-        <div style={{ gridColumn:GC.div1, background:MID_BG }} />
-        <div style={{ gridColumn:GC.p0, ...{textAlign:'right',paddingRight:8,fontSize:9,color:`${B.cardGold}99`,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'} }}>{cols[3]?.month}</div>
-        <div style={{ gridColumn:GC.p1, ...{textAlign:'right',paddingRight:10,fontSize:10,fontWeight:700,color:B.cardGold,fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'}, background:CUR_BG }}>{cols[4]?.month}</div>
-        <div style={{ gridColumn:GC.div2 }} />
-        <div style={{ gridColumn:GC.ex, ...{textAlign:'right',paddingRight:8,fontSize:9,color:'rgba(111,207,151,0.6)',fontFamily:'Arial,sans-serif',display:'flex',alignItems:'center',justifyContent:'flex-end'} }}>EXPEC</div>
+
+        <div style={{ width: CW.h0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+          fontSize: 8, color: `${B.cardGold}44`, fontFamily: 'Arial,sans-serif',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[0]?.month}</div>
+        <div style={{ width: CW.h1, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+          fontSize: 8, color: `${B.cardGold}55`, fontFamily: 'Arial,sans-serif',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[1]?.month}</div>
+        <div style={{ width: CW.h2, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+          fontSize: 9, color: `${B.cardGold}77`, fontFamily: 'Arial,sans-serif',
+          background: MID_BG, boxShadow: MID_BL,
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[2]?.month}</div>
+
+        <ColDivider color={`${B.cardGold}22`} />
+
+        <div style={{ width: CW.p0, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+          fontSize: 9, color: `${B.cardGold}99`, fontFamily: 'Arial,sans-serif',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[3]?.month}</div>
+        <div style={{ width: CW.p1, flexShrink: 0, textAlign: 'right', paddingRight: 10,
+          fontSize: 10, fontWeight: 700, color: B.cardGold, fontFamily: 'Arial,sans-serif',
+          background: CUR_BG, boxShadow: CUR_BL,
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{cols[4]?.month}</div>
+
+        <ColDivider color="#6fcf9722" />
+
+        <div style={{ width: CW.ex, flexShrink: 0, textAlign: 'right', paddingRight: 8,
+          fontSize: 9, color: '#6fcf9966', fontFamily: 'Arial,sans-serif',
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>EXPEC</div>
       </div>
+
       {rows.map(({ label, values, hl }, i) => (
         <WasdeRow key={label} label={label} values={values} hl={hl}
           expVal={expec?.[label]} editing={editing}
@@ -1784,7 +1753,7 @@ function WasdeShell({ children, brand, logo, logoFooter, title, reportLabel, col
       overflow: 'hidden',
       boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
       display: 'inline-block',
-      minWidth: 658 + 4, // Grid total: 206+66+66+70+8+78+96+8+60 = 658
+      minWidth: CW_LABEL_TOTAL + CW.h0 + CW.h1 + CW.h2 + DIV_W + CW.p0 + CW.p1 + DIV_W + CW.ex + 4,
     }}>
       {/* Header */}
       <div style={{
@@ -1871,17 +1840,14 @@ function WasdeTab({ brand }) {
   const logo       = B.logoHeader;
   const logoFooter = B.logoFooter;
 
-  const [parsed,     setParsed]    = useState(null);
-  const [prevData,   setPrevData]  = useState(null);
-  const [status,     setStatus]    = useState('');
-  const [statusPrev, setStatusPrev]= useState('');
-  const [editing,    setEditing]   = useState(false);
-  const [expec,      setExpec]     = useState({
+  const [parsed,   setParsed]  = useState(null);
+  const [status,   setStatus]  = useState('');
+  const [editing,  setEditing] = useState(false);
+  const [expec,    setExpec]   = useState({
     soyUS:{}, soyWorld:{}, cornUS:{}, cornWorld:{}, wheatWorld:{}
   });
   const [dl, setDl] = useState({});
-  const fileRef     = useRef(null);
-  const fileRefPrev = useRef(null);
+  const fileRef = useRef(null);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -1902,21 +1868,6 @@ function WasdeTab({ brand }) {
           const wb = XLSX2.read(data, {type:'array'});
           p = parseWASDE_XLS(wb);
         }
-        // Mescla dados do mês anterior (se disponível) em values[2]
-        if (prevData) {
-          ['soja','milho','trigo'].forEach(comm => {
-            if (p[comm]) {
-              // Atualiza header da coluna h2 com mês do arquivo anterior
-              p[comm].cols[1] = { safra: p[comm].cols[2].safra, month: prevData.monthLabel };
-              p[comm].sections?.forEach(sec => {
-                sec.rows.forEach(row => {
-                  const v = prevData[comm]?.[sec.key]?.[row.label];
-                  if (v != null) row.values[1] = v;
-                });
-              });
-            }
-          });
-        }
         setParsed(p);
         setStatus(`✓ WASDE carregado`);
       } catch(err) {
@@ -1929,49 +1880,6 @@ function WasdeTab({ brand }) {
     } else {
       reader.readAsArrayBuffer(file);
     }
-  };
-
-  // Carrega arquivo do mês anterior — extrai col4 de cada página
-  const handleFilePrev = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setStatusPrev('Processando...');
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = new Uint8Array(ev.target.result);
-        const XLSX2 = window.XLSX || (typeof XLSX !== 'undefined' ? XLSX : null);
-        if (!XLSX2) throw new Error('XLSX não disponível');
-        const wb = XLSX2.read(data, {type:'array'});
-        const pd = parseWASDE_XLS_PREV(wb);
-        setPrevData(pd);
-        setStatusPrev(`✓ ${pd.monthLabel} carregado`);
-        // Se arquivo principal já está carregado, re-aplica imediatamente
-        setParsed(prev => prev ? applyPrevData(prev, pd) : prev);
-      } catch(err) {
-        setStatusPrev(`✗ Erro: ${err.message}`);
-        console.error(err);
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  // Re-aplica prevData quando carregado após o arquivo principal
-  const applyPrevData = (p, pd) => {
-    if (!p || !pd) return p;
-    const clone = JSON.parse(JSON.stringify(p));
-    ['soja','milho','trigo'].forEach(comm => {
-      if (clone[comm]) {
-        clone[comm].cols[1] = { safra: clone[comm].cols[2].safra, month: pd.monthLabel };
-        clone[comm].sections?.forEach(sec => {
-          sec.rows.forEach(row => {
-            const v = pd[comm]?.[sec.key]?.[row.label];
-            if (v != null) row.values[1] = v;
-          });
-        });
-      }
-    });
-    return clone;
   };
 
   const setE = (sec, label, val) =>
@@ -2037,26 +1945,6 @@ function WasdeTab({ brand }) {
               <div style={{fontSize:10, fontFamily:'monospace',
                 color:status.startsWith('✓')?'#6fcf97':status.startsWith('✗')?'#eb5757':G.cream+'88'}}>
                 {status}
-              </div>
-            )}
-          </div>
-        </div>
-        {/* Segundo arquivo: mês anterior */}
-        <div>
-          <div style={{fontSize:9, color:G.gold, fontFamily:"'Cinzel',serif", letterSpacing:'0.1em', marginBottom:4}}>
-            MÊS ANTERIOR (OPCIONAL)
-          </div>
-          <div style={{display:'flex', gap:10, alignItems:'center'}}>
-            <button onClick={()=>fileRefPrev.current?.click()} style={{
-              background:'transparent', border:`1px solid ${G.gold}`, borderRadius:2,
-              color:G.gold, fontFamily:"'Cinzel',serif", fontSize:10, letterSpacing:'0.12em',
-              padding:'7px 14px', cursor:'pointer', fontWeight:'bold',
-            }}>⬆ CARREGAR MÊS ANT.</button>
-            <input ref={fileRefPrev} type="file" accept=".xls,.xlsx" onChange={handleFilePrev} style={{display:'none'}}/>
-            {statusPrev && (
-              <div style={{fontSize:10, fontFamily:'monospace',
-                color:statusPrev.startsWith('✓')?'#6fcf97':statusPrev.startsWith('✗')?'#eb5757':G.cream+'88'}}>
-                {statusPrev}
               </div>
             )}
           </div>
