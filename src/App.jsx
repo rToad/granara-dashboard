@@ -172,12 +172,14 @@ function parseCropProgress(text) {
   const cornEmerged    = getSection("Corn Emerged");
 
   // Summer stages (may not be present in April)
+  const cornSilking    = getSection("Corn Silking");
   const cornDough      = getSection("Corn Dough");
   const cornDented     = getSection("Corn Dented");
   const cornMatured    = getSection("Corn Mature");
   const cornHarvested  = getSection("Corn Harvested");
   if (extract18States(cornPlanted))   result.corn.plantado        = extract18States(cornPlanted);
   if (extract18States(cornEmerged))   result.corn.emergido        = extract18States(cornEmerged);
+  if (extract18States(cornSilking))   result.corn.embonecamento   = extract18States(cornSilking);
   if (extract18States(cornDough))     result.corn.pastoso         = extract18States(cornDough);
   if (extract18States(cornDented))    result.corn.formacaoDentes  = extract18States(cornDented);
   if (extract18States(cornMatured))   result.corn.maduro          = extract18States(cornMatured);
@@ -368,12 +370,12 @@ function ExportCard({label,icon,data,onUpdate,reportDate}) {
 
 // ── Crop Card ─────────────────────────────────────────────────────────────────
 const CORN_STAGES_LABELS = {
-  plantado:"PLANTADO", emergido:"EMERGIDO", pastoso:"PASTOSO",
+  plantado:"PLANTADO", emergido:"EMERGIDO", embonecamento:"EMBONECAMENTO", pastoso:"PASTOSO",
   formacaoDentes:"FORMAÇÃO DE DENTES", maduro:"MADURO", colhido:"COLHIDO",
 };
 const SOY_STAGES_LABELS = {
   plantado:"PLANTADO", emergido:"EMERGIDO", florescendo:"FLORESCENDO",
-  vaginando:"VAGINANDO", quedaFolhas:"QUEDA DAS FOLHAS", colhido:"COLHIDOS",
+  vaginando:"EM FORMAÇÃO DE VAGENS", quedaFolhas:"QUEDA DAS FOLHAS", colhido:"COLHIDOS",
 };
 // dir: +1 → aumentar é POSITIVO (verde ao subir); -1 → aumentar é NEGATIVO (vermelho ao subir); 0 → neutro
 const CONDITIONS = [
@@ -788,28 +790,52 @@ async function downloadCardPNG(elementId, filename) {
 
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+  // Helper: corre uma promise com timeout, para nunca travar em silêncio
+  // (ex.: a fonte Cinzel é carregada via @import do Google Fonts; o
+  // dom-to-image tenta inlinear o @font-face e isso pode travar por CORS)
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`Tempo esgotado: ${label}`)), ms)),
+    ]);
+  }
+
   try {
     // toSvg gera o SVG; desenhamos manualmente no canvas (toBlob nativo é confiável)
-    const svgDataUrl = await domtoimage.toSvg(el, { scale: 2 });
+    // disableEmbedFonts: true evita que a lib tente buscar os arquivos .woff2
+    // do Google Fonts (fonts.gstatic.com) via XHR — essa busca pode falhar
+    // silenciosamente por CORS e travar a geração do PNG indefinidamente.
+    // O texto já é renderizado com a fonte correta porque o navegador a
+    // carregou normalmente na página; só não precisamos reincorporá-la no SVG.
+    const svgDataUrl = await withTimeout(
+      domtoimage.toSvg(el, { scale: 2, disableEmbedFonts: true, cacheBust: true }),
+      15000,
+      'gerando SVG'
+    );
     const W = el.offsetWidth * 2;
     const H = el.offsetHeight * 2;
+    if (!W || !H) throw new Error('Elemento com dimensão zero — verifique se o card está visível na tela');
 
-    const blob = await new Promise((resolve, reject) => {
+    const blob = await withTimeout(new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = W;
-        canvas.height = H;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        canvas.toBlob(b => {
-          if (b && b.size > 100) resolve(b);
-          else reject(new Error(`Imagem vazia (${b?.size ?? 0}b)`));
-        }, 'image/png');
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = W;
+          canvas.height = H;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob(b => {
+            if (b && b.size > 100) resolve(b);
+            else reject(new Error(`Imagem vazia (${b?.size ?? 0}b)`));
+          }, 'image/png');
+        } catch (drawErr) {
+          reject(new Error('Falha ao desenhar no canvas: ' + drawErr.message));
+        }
       };
-      img.onerror = () => reject(new Error('Falha ao renderizar SVG'));
+      img.onerror = () => reject(new Error('Falha ao renderizar SVG (provável recurso externo bloqueado por CORS)'));
       img.src = svgDataUrl;
-    });
+    }), 15000, 'convertendo para PNG');
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
