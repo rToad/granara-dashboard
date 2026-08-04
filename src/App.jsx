@@ -679,7 +679,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
       {hasConditions && (
         <div style={{padding:"16px 20px 4px"}}>
           <div style={{
-            background:B.cardMid, border:`1px solid ${B.accent}`,
+            background:B.cardBg, border:`1px solid ${B.accent}66`,
             borderRadius:6, padding:"14px 16px",
             boxShadow:`0 0 0 1px ${B.accent}22`,
           }}>
@@ -709,12 +709,12 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
                   </span>
                   <div style={{display:"flex", gap:10, alignItems:"baseline", fontFamily:"monospace"}}>
                     {show5y && <>
-                      <span style={{fontSize:13, color:"#7a8a80"}}>{m5 ? m5+"%" : "—"}</span>
+                      <span style={{fontSize:13, color:"#EFE8D866"}}>{m5 ? m5+"%" : "—"}</span>
                       <span style={{color:B.cardGoldDim, fontSize:11}}>·</span>
                     </>}
-                    <span style={{fontSize:15, color:"#9fb0a5"}}>{ap ? ap+"%" : "—"}</span>
+                    <span style={{fontSize:15, color:"#EFE8D888"}}>{ap ? ap+"%" : "—"}</span>
                     <span style={{color:B.cardGoldDim, fontSize:11}}>·</span>
-                    <span style={{fontSize:17, color:"#c8d4c8"}}>{sp ? sp+"%" : "—"}</span>
+                    <span style={{fontSize:17, color:"#EFE8D8cc"}}>{sp ? sp+"%" : "—"}</span>
                     <span style={{color:B.cardGoldDim}}>→</span>
                     <span style={{fontSize:30, fontWeight:"bold", color: trendCol}}>
                       {at ? at+"%" : "—"}
