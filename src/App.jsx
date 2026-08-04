@@ -640,7 +640,7 @@ function ExportCardExport({ label, icon, data, reportDate, logo, logoFooter, bra
   );
 }
 
-function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, brand }) {
+function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, brand, show5y }) {
   const B = brand || BRANDS.granara;
   const stageLabels = isSoy ? SOY_STAGES_LABELS : CORN_STAGES_LABELS;
   // Estágio "plantado" some quando atinge 100% (plantio concluído) — mantém "emergido"
@@ -650,8 +650,6 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
     return data[k]?.atual || data[k]?.anoPassado;
   });
   const hasConditions = CONDITIONS.some(c => data[c.key]?.atual);
-  // Quando o plantio está concluído, as condições ganham destaque visual
-  const destaqueCondicoes = plantioCompleto && hasConditions;
 
   return (
     <CardShellExport logo={logo} logoFooter={logoFooter} brand={B}>
@@ -677,6 +675,58 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
         </div>
       </div>
 
+      {/* conditions — dado mais importante, sempre no topo e com destaque */}
+      {hasConditions && (
+        <div style={{padding:"16px 20px 4px"}}>
+          <div style={{
+            background:B.cardMid, border:`1px solid ${B.accent}`,
+            borderRadius:6, padding:"14px 16px",
+            boxShadow:`0 0 0 1px ${B.accent}22`,
+          }}>
+            <div style={{
+              fontSize:13, color:"#EFE8D8", letterSpacing:"0.14em", fontWeight:"bold",
+              marginBottom:10, borderBottom:"1px solid #AF965D44", paddingBottom:6,
+              display:"flex", justifyContent:"space-between", alignItems:"baseline",
+            }}>
+              <span>CONDIÇÕES DAS LAVOURAS</span>
+              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em"}}>
+                {show5y ? "MÉD.5A · " : ""}ANO PAS. · SEM. PAS. → ATUAL
+              </span>
+            </div>
+            {CONDITIONS.map(c => {
+              const m5 = data[c.key]?.media5;
+              const ap = data[c.key]?.anoPassado;
+              const sp = data[c.key]?.semPassada;
+              const at = data[c.key]?.atual;
+              const trendCol = condTrendColor(c, sp, at);
+              return (
+                <div key={c.key} style={{
+                  display:"flex", justifyContent:"space-between", alignItems:"center",
+                  padding:"8px 0", borderBottom:"1px solid #ffffff10",
+                }}>
+                  <span style={{fontSize:16, fontWeight:"bold", color: c.color}}>
+                    {c.label}
+                  </span>
+                  <div style={{display:"flex", gap:10, alignItems:"baseline", fontFamily:"monospace"}}>
+                    {show5y && <>
+                      <span style={{fontSize:13, color:"#7a8a80"}}>{m5 ? m5+"%" : "—"}</span>
+                      <span style={{color:B.cardGoldDim, fontSize:11}}>·</span>
+                    </>}
+                    <span style={{fontSize:15, color:"#9fb0a5"}}>{ap ? ap+"%" : "—"}</span>
+                    <span style={{color:B.cardGoldDim, fontSize:11}}>·</span>
+                    <span style={{fontSize:17, color:"#c8d4c8"}}>{sp ? sp+"%" : "—"}</span>
+                    <span style={{color:B.cardGoldDim}}>→</span>
+                    <span style={{fontSize:30, fontWeight:"bold", color: trendCol}}>
+                      {at ? at+"%" : "—"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* stages */}
       <div style={{padding:"14px 20px 10px"}}>
         {activeStages.length === 0 && (
@@ -684,7 +734,11 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
             Sem dados carregados
           </div>
         )}
-        {activeStages.map(([k, lbl]) => (
+        {activeStages.map(([k, lbl]) => {
+          const rows = [["Atual", data[k]?.atual], ["Ano Passado", data[k]?.anoPassado],
+            ["Sem. Passada", data[k]?.semPassada]];
+          if (show5y) rows.push(["Média 5 Anos", data[k]?.media5]);
+          return (
           <div key={k} style={{marginBottom:10}}>
             <div style={{
               background:B.cardMid, borderLeft:`3px solid ${B.accent}`,
@@ -692,9 +746,8 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
             }}>
               <span style={{fontSize:14, color:B.accent, letterSpacing:"0.14em", fontWeight:"bold"}}>{lbl}</span>
             </div>
-            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:"2px 0", padding:"0 4px"}}>
-              {[["Atual", data[k]?.atual], ["Ano Passado", data[k]?.anoPassado],
-                ["Sem. Passada", data[k]?.semPassada], ["Média 5 Anos", data[k]?.media5]].map(([l,v])=>(
+            <div style={{display:"grid", gridTemplateColumns: show5y ? "1fr 1fr" : "1fr 1fr 1fr", gap:"2px 0", padding:"0 4px"}}>
+              {rows.map(([l,v])=>(
                 <div key={l} style={{display:"flex", justifyContent:"space-between", padding:"3px 8px"}}>
                   <span style={{fontSize:14, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
                   <span style={{
@@ -707,56 +760,8 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
               ))}
             </div>
           </div>
-        ))}
-
-        {/* conditions */}
-        {hasConditions && (
-          <div style={{
-            background:B.sectionBg, border:`1px solid ${destaqueCondicoes ? B.accent+"66" : "#AF965D22"}`,
-            borderRadius:4, padding: destaqueCondicoes ? "14px 16px" : "10px 14px",
-            marginTop:6,
-            boxShadow: destaqueCondicoes ? `0 0 0 1px ${B.accent}22` : "none",
-          }}>
-            <div style={{
-              fontSize: destaqueCondicoes ? 11 : 9, color:B.cardGold, letterSpacing:"0.15em",
-              marginBottom:8, borderBottom:"1px solid #AF965D33", paddingBottom:4,
-              display:"flex", justifyContent:"space-between", alignItems:"baseline",
-            }}>
-              <span>CONDIÇÕES DAS LAVOURAS</span>
-              <span style={{fontSize:8, color:B.cardGoldDim, letterSpacing:"0.08em"}}>MÉD.5A · ANO PAS. · SEM. PAS. · ATUAL</span>
-            </div>
-            {CONDITIONS.map(c => {
-              const m5 = data[c.key]?.media5;
-              const ap = data[c.key]?.anoPassado;
-              const sp = data[c.key]?.semPassada;
-              const at = data[c.key]?.atual;
-              const trendCol = condTrendColor(c, sp, at);
-              return (
-                <div key={c.key} style={{
-                  display:"flex", justifyContent:"space-between", alignItems:"center",
-                  padding: destaqueCondicoes ? "7px 0" : "5px 0", borderBottom:"1px solid #ffffff08",
-                }}>
-                  <span style={{fontSize: destaqueCondicoes ? 15 : 14, color: c.color}}>
-                    {c.label}
-                  </span>
-                  <div style={{display:"flex", gap:8, alignItems:"baseline", fontFamily:"monospace"}}>
-                    <span style={{fontSize:13, color:"#6e6e6e"}}>{m5 ? m5+"%" : "—"}</span>
-                    <span style={{color:B.cardGoldDim, fontSize:11}}>·</span>
-                    <span style={{fontSize:14, color:"#888888"}}>{ap ? ap+"%" : "—"}</span>
-                    <span style={{color:B.cardGoldDim, fontSize:11}}>·</span>
-                    <span style={{fontSize:17, color:"#bbbbbb"}}>{sp ? sp+"%" : "—"}</span>
-                    <span style={{color:B.cardGoldDim}}>→</span>
-                    <span style={{
-                      fontSize: destaqueCondicoes ? 27 : 24, fontWeight:"bold", color: trendCol,
-                    }}>
-                      {at ? at+"%" : "—"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+          );
+        })}
       </div>
     </CardShellExport>
   );
@@ -855,6 +860,16 @@ function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, sale
   const cardLogo = T.logoHeader;
   const cardLogoFooter = T.logoFooter;
   const [dl, setDl] = useState({});
+  const [show5y, setShow5y] = useState(() => {
+    try { return localStorage.getItem("granara_show5y") === "1"; } catch(e) { return false; }
+  });
+  function toggleShow5y() {
+    setShow5y(v => {
+      const next = !v;
+      try { localStorage.setItem("granara_show5y", next ? "1" : "0"); } catch(e) {}
+      return next;
+    });
+  }
 
   async function handleDL(id, filename) {
     setDl(p => ({...p, [id]: true}));
@@ -938,18 +953,34 @@ function ExportTab({ exportData, cropData, reportDate, cropDate, salesData, sale
         </div>
       </Section>
 
+      <div style={{
+        display:"flex", alignItems:"center", justifyContent:"space-between",
+        marginBottom:12, marginTop:8,
+      }}>
+        <div style={{fontSize:10, color:"#AF965D55", fontFamily:"'Cinzel',serif", letterSpacing:"0.12em"}}>
+          LAVOURAS · CONFIGURAÇÃO DOS CARDS
+        </div>
+        <label style={{
+          display:"flex", alignItems:"center", gap:8, cursor:"pointer",
+          fontFamily:"'Cinzel',serif", fontSize:10, letterSpacing:"0.08em", color: T.cardGold,
+        }}>
+          <input type="checkbox" checked={show5y} onChange={toggleShow5y} style={{width:14, height:14}} />
+          EXIBIR MÉDIA DE 5 ANOS
+        </label>
+      </div>
+
       <Section title="LAVOURAS · MILHO" id="cc-corn" filename={`granara-milho-lavoura-${cdate}.png`}>
-        <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={false} />
+        <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={false} show5y={show5y} />
       </Section>
 
       <Section title="LAVOURAS · SOJA" id="cc-soy" filename={`granara-soja-lavoura-${cdate}.png`}>
-        <CropCardExport label="SOJA" icon={ICON_SOY} data={cropData.soy} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={true} />
+        <CropCardExport label="SOJA" icon={ICON_SOY} data={cropData.soy} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={true} show5y={show5y} />
       </Section>
 
       <Section title="LAVOURAS · MILHO + SOJA" id="cc-both" filename={`granara-lavouras-${cdate}.png`}>
         <div style={{display:"flex", gap:16}}>
-          <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={false} />
-          <CropCardExport label="SOJA"  icon={ICON_SOY}  data={cropData.soy}  cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={true}  />
+          <CropCardExport label="MILHO" icon={ICON_CORN} data={cropData.corn} cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={false} show5y={show5y} />
+          <CropCardExport label="SOJA"  icon={ICON_SOY}  data={cropData.soy}  cropDate={cropDate} logo={cardLogo} logoFooter={cardLogoFooter} brand={T} isSoy={true}  show5y={show5y} />
         </div>
       </Section>
     </div>
