@@ -679,9 +679,9 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
       {hasConditions && (
         <div style={{padding:"16px 20px 4px"}}>
           <div style={{
-            background:B.cardBg, border:`1px solid ${B.accent}66`,
-            borderRadius:6, padding:"14px 16px",
-            boxShadow:`0 0 0 1px ${B.accent}22`,
+            background:B.cardBg, border:`1px solid ${B.accent}`,
+            borderRadius:6, padding:"16px 18px",
+            boxShadow:`0 0 0 1px ${B.accent}33`,
           }}>
             <div style={{
               fontSize:13, color:"#EFE8D8", letterSpacing:"0.14em", fontWeight:"bold",
@@ -741,15 +741,16 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
           return (
           <div key={k} style={{marginBottom:10}}>
             <div style={{
-              background:B.cardMid, borderLeft:`3px solid ${B.accent}`,
-              padding:"4px 10px", marginBottom:6,
+              borderBottom:`1px solid #EFE8D822`,
+              padding:"2px 2px 5px",
+              marginBottom:8,
             }}>
-              <span style={{fontSize:14, color:B.accent, letterSpacing:"0.14em", fontWeight:"bold"}}>{lbl}</span>
+              <span style={{fontSize:12, color:"#EFE8D899", letterSpacing:"0.16em", fontWeight:"normal"}}>{lbl}</span>
             </div>
             <div style={{display:"grid", gridTemplateColumns: show5y ? "1fr 1fr" : "1fr 1fr 1fr", gap:"2px 0", padding:"0 4px"}}>
               {rows.map(([l,v])=>(
                 <div key={l} style={{display:"flex", justifyContent:"space-between", padding:"3px 8px"}}>
-                  <span style={{fontSize:14, color:"#b8c8b8", letterSpacing:"0.05em"}}>{l}</span>
+                  <span style={{fontSize:13, color:"#EFE8D877", letterSpacing:"0.05em"}}>{l}</span>
                   <span style={{
                     fontSize: l==="Atual" ? 24 : 20,
                     fontFamily:"monospace",
