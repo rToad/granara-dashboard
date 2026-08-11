@@ -688,14 +688,14 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
             </div>
             <div style={{
               display:"grid",
-              gridTemplateColumns: show5y ? "1fr 54px 60px 60px 78px" : "1fr 60px 60px 78px",
+              gridTemplateColumns: show5y ? "1fr 64px 72px 72px 92px" : "1fr 72px 72px 92px",
               borderBottom:"1px solid #AF965D44", paddingBottom:6, marginBottom:2,
             }}>
               <span></span>
-              {show5y && <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"right", borderLeft:"1px solid #EFE8D822", paddingLeft:6}}>MÉD.5A</span>}
-              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"right", borderLeft:"1px solid #EFE8D822", paddingLeft:6}}>ANO PAS.</span>
-              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"right", borderLeft:"1px solid #EFE8D822", paddingLeft:6}}>SEM. PAS.</span>
-              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"right", borderLeft:"1px solid #EFE8D822", paddingLeft:6}}>ATUAL</span>
+              {show5y && <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"center", borderLeft:"1px solid #EFE8D822"}}>MÉD.5A</span>}
+              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"center", borderLeft:"1px solid #EFE8D822"}}>ANO PAS.</span>
+              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"center", borderLeft:"1px solid #EFE8D822"}}>SEM. PAS.</span>
+              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"center", borderLeft:"1px solid #EFE8D822"}}>ATUAL</span>
             </div>
             {CONDITIONS.map(c => {
               const m5 = data[c.key]?.media5;
@@ -706,7 +706,7 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
               return (
                 <div key={c.key} style={{
                   display:"grid",
-                  gridTemplateColumns: show5y ? "1fr 54px 60px 60px 78px" : "1fr 60px 60px 78px",
+                  gridTemplateColumns: show5y ? "1fr 64px 72px 72px 92px" : "1fr 72px 72px 92px",
                   alignItems:"center",
                   padding:"8px 0", borderBottom:"1px solid #ffffff10",
                 }}>
@@ -714,19 +714,19 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
                     {c.label}
                   </span>
                   {show5y && (
-                    <span style={{fontSize:29, fontFamily:"monospace", color:"#EFE8D866", textAlign:"right", borderLeft:"1px solid #EFE8D815", paddingLeft:6}}>
+                    <span style={{fontSize:29, fontFamily:"monospace", color:"#EFE8D866", textAlign:"center", borderLeft:"1px solid #EFE8D815"}}>
                       {m5 ? m5+"%" : "—"}
                     </span>
                   )}
-                  <span style={{fontSize:29, fontFamily:"monospace", color:"#EFE8D888", textAlign:"right", borderLeft:"1px solid #EFE8D815", paddingLeft:6}}>
+                  <span style={{fontSize:29, fontFamily:"monospace", color:"#EFE8D888", textAlign:"center", borderLeft:"1px solid #EFE8D815"}}>
                     {ap ? ap+"%" : "—"}
                   </span>
-                  <span style={{fontSize:29, fontFamily:"monospace", color:"#EFE8D8cc", textAlign:"right", borderLeft:"1px solid #EFE8D815", paddingLeft:6}}>
+                  <span style={{fontSize:29, fontFamily:"monospace", color:"#EFE8D8cc", textAlign:"center", borderLeft:"1px solid #EFE8D815"}}>
                     {sp ? sp+"%" : "—"}
                   </span>
                   <span style={{
-                    display:"flex", alignItems:"baseline", justifyContent:"flex-end", gap:4,
-                    borderLeft:"1px solid #EFE8D815", paddingLeft:6,
+                    display:"flex", alignItems:"baseline", justifyContent:"center", gap:4,
+                    borderLeft:"1px solid #EFE8D815",
                   }}>
                     <span style={{color:B.cardGoldDim, fontSize:14}}>→</span>
                     <span style={{fontSize:29, fontFamily:"monospace", fontWeight:"bold", color: trendCol}}>
