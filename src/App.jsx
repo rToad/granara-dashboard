@@ -683,15 +683,19 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
             borderRadius:6, padding:"16px 18px",
             boxShadow:`0 0 0 1px ${B.accent}33`,
           }}>
+            <div style={{fontSize:13, color:"#EFE8D8", letterSpacing:"0.14em", fontWeight:"bold", marginBottom:10}}>
+              CONDIÇÕES DAS LAVOURAS
+            </div>
             <div style={{
-              fontSize:13, color:"#EFE8D8", letterSpacing:"0.14em", fontWeight:"bold",
-              marginBottom:10, borderBottom:"1px solid #AF965D44", paddingBottom:6,
-              display:"flex", justifyContent:"space-between", alignItems:"baseline",
+              display:"grid",
+              gridTemplateColumns: show5y ? "1fr 54px 60px 60px 78px" : "1fr 60px 60px 78px",
+              borderBottom:"1px solid #AF965D44", paddingBottom:6, marginBottom:2,
             }}>
-              <span>CONDIÇÕES DAS LAVOURAS</span>
-              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em"}}>
-                {show5y ? "MÉD.5A · " : ""}ANO PAS. · SEM. PAS. → ATUAL
-              </span>
+              <span></span>
+              {show5y && <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"right", borderLeft:"1px solid #EFE8D822", paddingLeft:6}}>MÉD.5A</span>}
+              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"right", borderLeft:"1px solid #EFE8D822", paddingLeft:6}}>ANO PAS.</span>
+              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"right", borderLeft:"1px solid #EFE8D822", paddingLeft:6}}>SEM. PAS.</span>
+              <span style={{fontSize:9, color:B.cardGold, letterSpacing:"0.06em", textAlign:"right", borderLeft:"1px solid #EFE8D822", paddingLeft:6}}>ATUAL</span>
             </div>
             {CONDITIONS.map(c => {
               const m5 = data[c.key]?.media5;
@@ -701,25 +705,34 @@ function CropCardExport({ label, icon, data, cropDate, logo, logoFooter, isSoy, 
               const trendCol = condTrendColor(c, sp, at);
               return (
                 <div key={c.key} style={{
-                  display:"flex", justifyContent:"space-between", alignItems:"center",
+                  display:"grid",
+                  gridTemplateColumns: show5y ? "1fr 54px 60px 60px 78px" : "1fr 60px 60px 78px",
+                  alignItems:"center",
                   padding:"8px 0", borderBottom:"1px solid #ffffff10",
                 }}>
                   <span style={{fontSize:16, fontWeight:"bold", color: c.color}}>
                     {c.label}
                   </span>
-                  <div style={{display:"flex", gap:10, alignItems:"baseline", fontFamily:"monospace"}}>
-                    {show5y && <>
-                      <span style={{fontSize:13, color:"#EFE8D866"}}>{m5 ? m5+"%" : "—"}</span>
-                      <span style={{color:B.cardGoldDim, fontSize:11}}>·</span>
-                    </>}
-                    <span style={{fontSize:15, color:"#EFE8D888"}}>{ap ? ap+"%" : "—"}</span>
-                    <span style={{color:B.cardGoldDim, fontSize:11}}>·</span>
-                    <span style={{fontSize:17, color:"#EFE8D8cc"}}>{sp ? sp+"%" : "—"}</span>
-                    <span style={{color:B.cardGoldDim}}>→</span>
-                    <span style={{fontSize:30, fontWeight:"bold", color: trendCol}}>
+                  {show5y && (
+                    <span style={{fontSize:29, fontFamily:"monospace", color:"#EFE8D866", textAlign:"right", borderLeft:"1px solid #EFE8D815", paddingLeft:6}}>
+                      {m5 ? m5+"%" : "—"}
+                    </span>
+                  )}
+                  <span style={{fontSize:29, fontFamily:"monospace", color:"#EFE8D888", textAlign:"right", borderLeft:"1px solid #EFE8D815", paddingLeft:6}}>
+                    {ap ? ap+"%" : "—"}
+                  </span>
+                  <span style={{fontSize:29, fontFamily:"monospace", color:"#EFE8D8cc", textAlign:"right", borderLeft:"1px solid #EFE8D815", paddingLeft:6}}>
+                    {sp ? sp+"%" : "—"}
+                  </span>
+                  <span style={{
+                    display:"flex", alignItems:"baseline", justifyContent:"flex-end", gap:4,
+                    borderLeft:"1px solid #EFE8D815", paddingLeft:6,
+                  }}>
+                    <span style={{color:B.cardGoldDim, fontSize:14}}>→</span>
+                    <span style={{fontSize:29, fontFamily:"monospace", fontWeight:"bold", color: trendCol}}>
                       {at ? at+"%" : "—"}
                     </span>
-                  </div>
+                  </span>
                 </div>
               );
             })}
