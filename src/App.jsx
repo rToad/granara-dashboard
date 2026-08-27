@@ -1128,26 +1128,23 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
         <div style={{background:B.sectionBg,border:"1px solid #AF965D22",borderRadius:4,padding:"10px 14px",marginBottom:10}}>
           <div style={{fontSize:9,color:B.accent,letterSpacing:"0.15em",marginBottom:8,
             borderBottom:`1px solid ${B.accent}33`,paddingBottom:4,fontWeight:"bold"}}>VENDAS</div>
-          {[
-            [`Vendas da Semana ${data.myLabel||"—"}`,   data.vendasSemana,   false],
-            [`Vendas Acumuladas ${data.myLabel||"—"}`,  data.vendasAcum2526, true],
-            [`Vendas Acumuladas ${data.myLabelPrev||"—"}`, data.vendasAcum2425, false],
-          ].map(([l,v,b])=>(
-            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:14,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
-              <span style={{fontSize:b?18:15,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
-            </div>
-          ))}
-          {/* Safra nova (new crop) — só aparece quando já há dado publicado */}
-          {[
-            [`Vendas da Semana ${data.myLabelNext||"—"}`,   data.vendasSemanaNext],
-            [`Vendas Pendentes ${data.myLabelNext||"—"}`,   data.vendasPendenteNext],
-          ].filter(([,v]) => parseFloat(String(v||"").replace(/,/g,".")) > 0).map(([l,v])=>(
-            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
-              <span style={{fontSize:13,color:"#8fa89a",letterSpacing:"0.05em"}}>{l}</span>
-              <span style={{fontSize:14,fontFamily:"monospace",color:"#c8d4c8"}}>{fmtS(v)}</span>
-            </div>
-          ))}
+          {(() => {
+            const gt0 = v => parseFloat(String(v||"").replace(/,/g,".")) > 0;
+            const rows = [
+              [`Vendas da Semana ${data.myLabel||"—"}`,   data.vendasSemana,   false],
+            ];
+            // Safra nova (new crop) — acima das acumuladas, só quando já há dado
+            if (gt0(data.vendasSemanaNext))   rows.push([`Vendas da Semana ${data.myLabelNext||"—"}`,   data.vendasSemanaNext,   "new"]);
+            if (gt0(data.vendasPendenteNext)) rows.push([`Vendas Pendentes ${data.myLabelNext||"—"}`,   data.vendasPendenteNext, "new"]);
+            rows.push([`Vendas Acumuladas ${data.myLabel||"—"}`,  data.vendasAcum2526, true]);
+            rows.push([`Vendas Acumuladas ${data.myLabelPrev||"—"}`, data.vendasAcum2425, false]);
+            return rows.map(([l,v,b])=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
+                <span style={{fontSize:b==="new"?13:14,color:b==="new"?"#8fa89a":(b?B.cardGold:"#b8c8b8"),letterSpacing:"0.05em",fontWeight:b===true?"bold":"normal"}}>{l}</span>
+                <span style={{fontSize:b===true?18:(b==="new"?14:15),fontFamily:"monospace",fontWeight:b===true?"bold":"normal",color:b==="new"?"#c8d4c8":"#ffffff"}}>{fmtS(v)}</span>
+              </div>
+            ));
+          })()}
           {dVendas!==null&&(
             <div style={{textAlign:"right",fontSize:15,fontFamily:"monospace",color:arrowCol(dVendas),fontWeight:"bold",marginTop:2}}>
               {isPos(dVendas)?"▲":"▼"} {Math.abs(dVendas)}% acumulado
