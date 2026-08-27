@@ -1035,6 +1035,8 @@ function parseSales(xmlText) {
         const prevAcum  = parseFloat(d.getAttribute("PreviousMKTYearAccumulatedExports") || "0");
         const prevOut   = parseFloat(d.getAttribute("PreviousMKTYearOutstandingSales")   || "0");
         target.vendasAcum2425      = String(prevAcum + prevOut);
+        target.vendasSemana2627    = d.getAttribute("NextMKTYearNetSales")           || "";
+        target.vendasPendentes2627 = d.getAttribute("NextMKTYearOutstandingSales")   || "";
         target.embarqueSemana      = d.getAttribute("WeeklyExports")                  || "";
         target.embarqueAcum2526    = d.getAttribute("AccumulatedExports")             || "";
         target.embarquePendente    = d.getAttribute("OutstandingSales")               || "";
@@ -1093,10 +1095,13 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
           <div style={{fontSize:9,color:B.accent,letterSpacing:"0.15em",marginBottom:8,
             borderBottom:`1px solid ${B.accent}33`,paddingBottom:4,fontWeight:"bold"}}>VENDAS</div>
           {[
+            ["Vendas da Semana 2026/27",   data.vendasSemana2627,    false],
+            ["Vendas Pendentes 2026/27",   data.vendasPendentes2627, false],
             ["Vendas da Semana 2025/26",   data.vendasSemana,   false],
             ["Vendas Acumuladas 2025/26",  data.vendasAcum2526, true],
             ["Vendas Acumuladas 2024/25",  data.vendasAcum2425, false],
-          ].map(([l,v,b])=>(
+          ].filter(([l,v]) => !l.includes("2026/27") || (parseFloat(String(v||"").replace(/,/g,".")) > 0)
+          ).map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
               <span style={{fontSize:14,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
               <span style={{fontSize:b?18:15,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
