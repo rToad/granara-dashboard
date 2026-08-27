@@ -1009,6 +1009,16 @@ function parseSales(xmlText) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xmlText, "text/xml");
     const details = doc.querySelectorAll("Details");
+    let bestDateValue = 0;
+
+    // "Sep 2025/Aug 2026" -> {cur:"25/26", prev:"24/25"}
+    const myLabels = (myStr) => {
+      const m = String(myStr||"").match(/(\d{4}).*?(\d{4})/);
+      if (!m) return { cur:"", prev:"" };
+      const y1 = parseInt(m[1]), y2 = parseInt(m[2]);
+      const two = y => String(y).slice(-2);
+      return { cur:`${two(y1)}/${two(y2)}`, prev:`${two(y1-1)}/${two(y2-1)}` };
+    };
 
     details.forEach(d => {
       const name = d.getAttribute("CommodityName") || "";
@@ -1017,21 +1027,36 @@ function parseSales(xmlText) {
       if (!isCorn && !isSoy) return;
 
       const period = d.getAttribute("PeriodEndingDate") || "";
-      // Use most recent (week 45 > week 44)
       const mktWeek = parseInt(d.getAttribute("MarketingYearWeekNumber") || "0");
+      const marketingYear = d.getAttribute("MarketingYear") || "";
       const target  = isCorn ? result.corn : result.soy;
 
-      if (!target.week || mktWeek > target.week) {
+      // Compare by actual calendar date first (MM/DD/YYYY), week number only
+      // breaks ties on the same date — raw week number alone fails at MY
+      // rollover, since a new marketing year restarts its week count at 1
+      // even though its date is more recent than the closing year's week 51+.
+      const [mm, dd, yyyy] = period.split("/").map(n => parseInt(n) || 0);
+      const dateValue = yyyy*10000 + mm*100 + dd;
+      const isNewer = !target._dateValue
+        || dateValue > target._dateValue
+        || (dateValue === target._dateValue && mktWeek > (target.week||0));
+
+      if (isNewer) {
+        target._dateValue = dateValue;
         target.week = mktWeek;
-        if (!result.date) {
-        // Convert MM/DD/YYYY to DD/MM/YYYY
-        const parts = period.split("/");
-        result.date = parts.length === 3 ? `${parts[1]}/${parts[0]}/${parts[2]}` : period;
-      }
+        const { cur, prev } = myLabels(marketingYear);
+        target.myLabel     = cur;
+        target.myLabelPrev = prev;
+
+        if (dateValue >= bestDateValue) {
+          bestDateValue = dateValue;
+          const parts = period.split("/");
+          result.date = parts.length === 3 ? `${parts[1]}/${parts[0]}/${parts[2]}` : period;
+        }
 
         target.vendasSemana        = d.getAttribute("NetSales")                        || "";
         target.vendasAcum2526      = d.getAttribute("TotalCommitment")                || "";
-        // Acum 24/25 = embarques acumulados + pendentes do ano anterior
+        // Acum ano anterior = embarques acumulados + pendentes do ano anterior
         const prevAcum  = parseFloat(d.getAttribute("PreviousMKTYearAccumulatedExports") || "0");
         const prevOut   = parseFloat(d.getAttribute("PreviousMKTYearOutstandingSales")   || "0");
         target.vendasAcum2425      = String(prevAcum + prevOut);
@@ -1093,9 +1118,9 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
           <div style={{fontSize:9,color:B.accent,letterSpacing:"0.15em",marginBottom:8,
             borderBottom:`1px solid ${B.accent}33`,paddingBottom:4,fontWeight:"bold"}}>VENDAS</div>
           {[
-            ["Vendas da Semana 2025/26",   data.vendasSemana,   false],
-            ["Vendas Acumuladas 2025/26",  data.vendasAcum2526, true],
-            ["Vendas Acumuladas 2024/25",  data.vendasAcum2425, false],
+            [`Vendas da Semana ${data.myLabel||"—"}`,   data.vendasSemana,   false],
+            [`Vendas Acumuladas ${data.myLabel||"—"}`,  data.vendasAcum2526, true],
+            [`Vendas Acumuladas ${data.myLabelPrev||"—"}`, data.vendasAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
               <span style={{fontSize:14,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
@@ -1123,8 +1148,8 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
           {[
             ["Embarques da Semana",         data.embarqueSemana,   false],
             ["Embarques Pendentes",         data.embarquePendente, false],
-            ["Embarques Acumulados 2025/26",data.embarqueAcum2526, true],
-            ["Embarques Acumulados 2024/25",data.embarqueAcum2425, false],
+            [`Embarques Acumulados ${data.myLabel||"—"}`,data.embarqueAcum2526, true],
+            [`Embarques Acumulados ${data.myLabelPrev||"—"}`,data.embarqueAcum2425, false],
           ].map(([l,v,b])=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
               <span style={{fontSize:14,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
