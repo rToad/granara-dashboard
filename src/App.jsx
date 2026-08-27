@@ -1047,6 +1047,14 @@ function parseSales(xmlText) {
         const { cur, prev } = myLabels(marketingYear);
         target.myLabel     = cur;
         target.myLabelPrev = prev;
+        // Safra nova (next marketing year) — ex: "25/26" -> "26/27"
+        const nextLbl = (lbl) => {
+          const m = String(lbl||"").match(/(\d{2})\/(\d{2})/);
+          if (!m) return "";
+          const inc = n => String((parseInt(n)+1)%100).padStart(2,"0");
+          return `${inc(m[1])}/${inc(m[2])}`;
+        };
+        target.myLabelNext = nextLbl(cur);
 
         if (dateValue >= bestDateValue) {
           bestDateValue = dateValue;
@@ -1065,6 +1073,9 @@ function parseSales(xmlText) {
         target.embarquePendente    = d.getAttribute("OutstandingSales")               || "";
         target.expectativa         = d.getAttribute("WASDEReportProjectionsQuantity") || "";
         target.embarqueAcum2425    = d.getAttribute("PreviousMKTYearAccumulatedExports") || "";
+        // Safra nova (new crop) — vendas da semana e vendas pendentes
+        target.vendasSemanaNext    = d.getAttribute("NextMKTYearNetSales")            || "";
+        target.vendasPendenteNext  = d.getAttribute("NextMKTYearOutstandingSales")    || "";
       }
     });
   } catch(e) {
@@ -1125,6 +1136,16 @@ function SalesCardExport({ label, icon, data, salesDate, logo, logoFooter, brand
             <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
               <span style={{fontSize:14,color:b?B.cardGold:"#b8c8b8",letterSpacing:"0.05em",fontWeight:b?"bold":"normal"}}>{l}</span>
               <span style={{fontSize:b?18:15,fontFamily:"monospace",fontWeight:b?"bold":"normal",color:"#ffffff"}}>{fmtS(v)}</span>
+            </div>
+          ))}
+          {/* Safra nova (new crop) — só aparece quando já há dado publicado */}
+          {[
+            [`Vendas da Semana ${data.myLabelNext||"—"}`,   data.vendasSemanaNext],
+            [`Vendas Pendentes ${data.myLabelNext||"—"}`,   data.vendasPendenteNext],
+          ].filter(([,v]) => parseFloat(String(v||"").replace(/,/g,".")) > 0).map(([l,v])=>(
+            <div key={l} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid #ffffff08"}}>
+              <span style={{fontSize:13,color:"#8fa89a",letterSpacing:"0.05em"}}>{l}</span>
+              <span style={{fontSize:14,fontFamily:"monospace",color:"#c8d4c8"}}>{fmtS(v)}</span>
             </div>
           ))}
           {dVendas!==null&&(
